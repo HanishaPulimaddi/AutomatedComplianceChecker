@@ -1,0 +1,4 @@
+address,suburb,lga,zone,front_setback_m,side_setback_1st_m,side_setback_2nd_m,rear_setback_m,max_height_m,max_storeys,height_plane,landscaped_area_pct,fsr,min_lot_size_m2,heritage,flood,bushfire,lmr_area,tod_area,source
+35 Connecticut Avenue Five Dock 2046,Five Dock,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+28 Clare Crescent Russell Lea 2046,Russell Lea,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+18 Spring Street Abbotsford 2046,Abbotsford,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
