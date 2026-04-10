@@ -2,6 +2,11 @@ import json
 import sys
 import os
 import time
+from pathlib import Path
+import json
+
+BASE_DIR = Path(__file__).resolve().parent
+DATA_PATH = BASE_DIR / "data" / "cached_lots.json"
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -23,7 +28,7 @@ app.add_middleware(
 )
 
 # Load rules once at startup
-with open("data/rules_r2_canada_bay_raw.json") as f:
+with open("../data/rules_r2_canada_bay.json") as f:
     ALL_RULES = json.load(f)
 
 RULES = [r for r in ALL_RULES if r.get("confidence", 0) >= 0.8]
@@ -43,7 +48,7 @@ class EnvelopeRequest(BaseModel):
 
 def get_cached_lot(address: str):
     try:
-        with open("data/cached_lots.json") as f:
+        with open("../data/cached_lots.json") as f:
             cache = json.load(f)
         if address in cache:
             print(f"  Cache hit: {address}")
@@ -54,12 +59,12 @@ def get_cached_lot(address: str):
 
 def save_to_cache(address: str, lot_data: dict):
     try:
-        with open("data/cached_lots.json") as f:
+        with open("../data/cached_lots.json") as f:
             cache = json.load(f)
     except FileNotFoundError:
         cache = {}
     cache[address] = lot_data
-    with open("data/cached_lots.json", "w") as f:
+    with open("../data/cached_lots.json", "w") as f:
         json.dump(cache, f, indent=2)
 
 
@@ -141,18 +146,42 @@ def get_envelope(req: EnvelopeRequest):
         envelope = compute_envelope(polygon, RULES, lat, lon)
 
         # Find which rules were actually applied
-        applied_params = {"front_setback", "rear_setback",
-                          "side_setback_ground", "side_setback_upper"}
+        applied_params = {
+            "front_setback", "rear_setback", "rear_setback_upper",
+            "side_setback_ground", "side_setback_upper",
+            "max_height", "max_storeys", "height_plane",
+            "landscaped_area_pct", "private_open_space",
+            "private_open_space_min_dimension"
+        }
+
         applied_rules = [
-            r for r in RULES if r.get("parameter") in applied_params
+            r for r in RULES
+            if r.get("parameter") in applied_params
+            and r.get("dwelling_type") in ("dwelling_house", "all")
+            and r.get("lot_type") in ("single_frontage", "all", "not_specified")
         ]
+
+        citations = []
+        for r in applied_rules:
+            citations.append({
+                "parameter": r["parameter"],
+                "value": r["value"],
+                "unit": r["unit"],
+                "operator": r["operator"],
+                "clause": r.get("source_clause", ""),
+                "page": r.get("source_page", 0),
+                "text": r.get("source_text", ""),
+                "conditions": r.get("conditions", []),
+                "exceptions": r.get("exceptions", []),
+                "pdf_link": f"/docs/canada_bay_dcp_part_e.pdf#page={r.get('source_page', 1)}"
+            })
 
         return {
             "address":       req.address,
             "zone":          zone,
             "lot_polygon":   polygon,
             "envelope":      envelope,
-            "rules_applied": applied_rules
+            "rules_applied": citations
         }
 
     except ValueError as e:
