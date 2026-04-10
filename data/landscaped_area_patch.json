@@ -1,0 +1,367 @@
+[
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 35,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dwelling_house",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_front_pct",
+      "landscaped_area_rear_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Single dwellings 35%",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_front_pct",
+    "value": 50,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dwelling_house",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Single dwellings...50% [front setback]",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_rear_pct",
+    "value": 50,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dwelling_house",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Single dwellings...50% [rear setback]",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 40,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dwelling_house",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [
+      "land located within a Biodiversity Corridor"
+    ],
+    "exceptions": [],
+    "related_rules": [],
+    "source_clause": "C4",
+    "source_text_quote": "Single dwellings...40% [Biodiversity Corridor]",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 35,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "secondary_dwelling",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_front_pct",
+      "landscaped_area_rear_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Secondary dwellings 35%",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_front_pct",
+    "value": 50,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "secondary_dwelling",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Secondary dwellings...50% [front setback]",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_rear_pct",
+    "value": 50,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "secondary_dwelling",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Secondary dwellings...50% [rear setback]",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 40,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "secondary_dwelling",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [
+      "land located within a Biodiversity Corridor"
+    ],
+    "exceptions": [],
+    "related_rules": [],
+    "source_clause": "C4",
+    "source_text_quote": "Secondary dwellings...40% [Biodiversity Corridor]",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 35,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dual_occupancy_attached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_front_pct",
+      "landscaped_area_rear_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Dual occupancies 35%",
+    "confidence": 0.95
+  },
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 35,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dual_occupancy_detached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_front_pct",
+      "landscaped_area_rear_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Dual occupancies 35%",
+    "confidence": 0.95
+  },
+  {
+    "parameter": "landscaped_area_front_pct",
+    "value": 35,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dual_occupancy_attached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Dual occupancies...35% [front setback]",
+    "confidence": 0.95
+  },
+  {
+    "parameter": "landscaped_area_front_pct",
+    "value": 35,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dual_occupancy_detached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Dual occupancies...35% [front setback]",
+    "confidence": 0.95
+  },
+  {
+    "parameter": "landscaped_area_rear_pct",
+    "value": 50,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dual_occupancy_attached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Dual occupancies...50% [rear setback]",
+    "confidence": 0.95
+  },
+  {
+    "parameter": "landscaped_area_rear_pct",
+    "value": 50,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dual_occupancy_detached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Dual occupancies...50% [rear setback]",
+    "confidence": 0.95
+  },
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 40,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dual_occupancy_attached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [
+      "land located within a Biodiversity Corridor"
+    ],
+    "exceptions": [],
+    "related_rules": [],
+    "source_clause": "C4",
+    "source_text_quote": "Dual occupancies...40% [Biodiversity Corridor]",
+    "confidence": 0.95
+  },
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 40,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "dual_occupancy_detached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [
+      "land located within a Biodiversity Corridor"
+    ],
+    "exceptions": [],
+    "related_rules": [],
+    "source_clause": "C4",
+    "source_text_quote": "Dual occupancies...40% [Biodiversity Corridor]",
+    "confidence": 0.95
+  },
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 35,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "semi_detached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_front_pct",
+      "landscaped_area_rear_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Semi-detached dwellings 35%",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_front_pct",
+    "value": 35,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "semi_detached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Semi-detached dwellings...35% [front setback]",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_rear_pct",
+    "value": 50,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "semi_detached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [],
+    "exceptions": [],
+    "related_rules": [
+      "landscaped_area_pct"
+    ],
+    "source_clause": "C4",
+    "source_text_quote": "Semi-detached dwellings...50% [rear setback]",
+    "confidence": 1.0
+  },
+  {
+    "parameter": "landscaped_area_pct",
+    "value": 40,
+    "unit": "pct",
+    "operator": "min",
+    "zone": "not_specified",
+    "dwelling_type": "semi_detached",
+    "storey_applicability": "not_specified",
+    "lot_type": "all",
+    "conditions": [
+      "land located within a Biodiversity Corridor"
+    ],
+    "exceptions": [],
+    "related_rules": [],
+    "source_clause": "C4",
+    "source_text_quote": "Semi-detached dwellings...40% [Biodiversity Corridor]",
+    "confidence": 1.0
+  }
+]
