@@ -14,7 +14,7 @@ from compute_envelope import compute_envelope
 
 app = FastAPI(title="Automated Compliance Checker", version="1.0.0")
 
-# CORS — allows the React web app at localhost:5173 to call this API
+# CORS - allows the React web app at localhost:5173 to call this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
@@ -22,8 +22,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load rules once at startup
-with open("data/rules_r2_canada_bay_raw.json") as f:
+# Load verified rules once at startup
+with open("data/rules_r2_canada_bay.json") as f:
     ALL_RULES = json.load(f)
 
 RULES = [r for r in ALL_RULES if r.get("confidence", 0) >= 0.8]
@@ -77,7 +77,6 @@ def get_site(req: SiteRequest):
     Checks cache first, fetches from NSW APIs if not cached.
     """
     try:
-        # Check cache first
         cached = get_cached_lot(req.address)
         if cached:
             return {
@@ -89,7 +88,6 @@ def get_site(req: SiteRequest):
                 "cached":   True
             }
 
-        # Not in cache — fetch from NSW APIs
         print(f"Fetching from NSW APIs: {req.address}")
         lat, lon = geocode(req.address)
         time.sleep(0.5)
@@ -121,7 +119,6 @@ def get_envelope(req: EnvelopeRequest):
     computed from the lot polygon and DCP rules.
     """
     try:
-        # Get site data (from cache or NSW APIs)
         cached = get_cached_lot(req.address)
         if cached:
             lat     = cached["lat"]
@@ -140,19 +137,45 @@ def get_envelope(req: EnvelopeRequest):
         # Compute envelope
         envelope = compute_envelope(polygon, RULES, lat, lon)
 
-        # Find which rules were actually applied
-        applied_params = {"front_setback", "rear_setback",
-                          "side_setback_ground", "side_setback_upper"}
+        # Parameters to include in citations
+        applied_params = {
+            "front_setback", "rear_setback", "rear_setback_upper",
+            "side_setback_ground", "side_setback_upper",
+            "max_height", "max_storeys", "height_plane",
+            "landscaped_area_pct", "private_open_space",
+            "private_open_space_min_dimension"
+        }
+
+        # Filter rules: only relevant parameters, dwelling houses, standard lots
         applied_rules = [
-            r for r in RULES if r.get("parameter") in applied_params
+            r for r in RULES
+            if r.get("parameter") in applied_params
+            and r.get("dwelling_type") in ("dwelling_house", "all")
+            and r.get("lot_type") in ("single_frontage", "all", "not_specified")
         ]
+
+        # Format citations with PDF links for the web app
+        citations = []
+        for r in applied_rules:
+            citations.append({
+                "parameter": r["parameter"],
+                "value": r["value"],
+                "unit": r["unit"],
+                "operator": r["operator"],
+                "clause": r.get("source_clause", ""),
+                "page": r.get("source_page", 0),
+                "text": r.get("source_text", ""),
+                "conditions": r.get("conditions", []),
+                "exceptions": r.get("exceptions", []),
+                "pdf_link": f"/docs/canada_bay_dcp_part_e.pdf#page={r.get('source_page', 1)}"
+            })
 
         return {
             "address":       req.address,
             "zone":          zone,
             "lot_polygon":   polygon,
             "envelope":      envelope,
-            "rules_applied": applied_rules
+            "rules_applied": citations
         }
 
     except ValueError as e:
