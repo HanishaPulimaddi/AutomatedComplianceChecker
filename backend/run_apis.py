@@ -18,7 +18,7 @@ for addr in addresses:
     print(f"\nProcessing: {addr}")
     lat, lon = geocode(addr)
     polygon = get_lot_polygon(lat, lon)
-    zone = get_zone(lat, lon)
+    zone = get_zone(lat, lon, polygon=polygon)  # pass polygon here
 
     results[addr] = {
         "lat": lat,

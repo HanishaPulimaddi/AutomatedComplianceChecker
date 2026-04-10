@@ -68,10 +68,6 @@ def get_lot_polygon(lat: float, lon: float) -> dict:
         "/sixmaps/Cadastre/MapServer/0/query"
     )
 
-    # Geocoded points often land on the road rather than the lot, so a point
-    # query returns nothing. Instead, use progressively larger envelopes until
-    # we get at least one result, then take the feature whose envelope is
-    # smallest (i.e. the tightest match to our point).
     for delta in [0.0001, 0.0002, 0.0005, 0.001]:
         params = {
             "geometry": f"{lon-delta},{lat-delta},{lon+delta},{lat+delta}",
@@ -88,7 +84,6 @@ def get_lot_polygon(lat: float, lon: float) -> dict:
         data = response.json()
         features = data.get("features", [])
         if features:
-            # Pick the feature whose centroid is closest to our point
             def centroid_dist(feat):
                 rings = feat["geometry"]["rings"]
                 xs = [p[0] for p in rings[0]]
@@ -105,12 +100,20 @@ def get_lot_polygon(lat: float, lon: float) -> dict:
 
     raise ValueError(f"No lot found at ({lat}, {lon})")
 
-
-def get_zone(lat: float, lon: float) -> str:
+def get_zone(lat: float, lon: float, polygon: dict = None) -> str:
     url = (
         "https://mapprod3.environment.nsw.gov.au/arcgis/rest/services"
         "/Planning/EPI_Primary_Planning_Layers/MapServer/2/query"
     )
+
+    if polygon:
+        rings = polygon["coordinates"][0]
+        xs = [p[0] for p in rings]
+        ys = [p[1] for p in rings]
+        lon = sum(xs) / len(xs)
+        lat = sum(ys) / len(ys)
+        print(f"  Using polygon centroid for zone query: ({lat:.6f}, {lon:.6f})")
+
     params = {
         "geometry": f"{lon},{lat}",
         "geometryType": "esriGeometryPoint",
