@@ -208,3 +208,6 @@ __marimo__/
 frontend/node_modules/
 frontend/dist/
 web/node_modules/
+
+node_modules/
+package-lock.json
