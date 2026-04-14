@@ -16,6 +16,7 @@ def get_front_edge(polygon_coords: list, geocoded_lon: float, geocoded_lat: floa
     for i in range(len(coords)):
         p1 = coords[i]
         p2 = coords[(i + 1) % len(coords)]
+        
 
         mid_x = (p1[0] + p2[0]) / 2
         mid_y = (p1[1] + p2[1]) / 2
@@ -139,7 +140,7 @@ if __name__ == "__main__":
         cached = json.load(f)
 
     # Load real extracted rules
-    with open("data/rules_r2_canada_bay_raw.json") as f:
+    with open("data/rules_r2_canada_bay.json") as f:
         all_rules = json.load(f)
 
     # Only use high confidence rules
