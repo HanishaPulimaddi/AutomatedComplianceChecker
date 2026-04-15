@@ -61,7 +61,8 @@ RULES APPLIED
 import json
 import math
 from pathlib import Path
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, Point, LineString
+from shapely.ops import nearest_points
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR.parent / "data"
@@ -99,21 +100,22 @@ def compute_lot_dimensions(polygon_coords: list, geocoded_lat: float, geocoded_l
 
     coords = polygon_coords[:-1]  # drop closing duplicate
 
-    # Identify front edge: midpoint closest to geocoded road point
-    closest_idx = 0
-    closest_dist = float("inf")
+    # Identify front edge using nearest point on boundary.
+    # More robust than closest-midpoint: handles crescent roads and corner lots
+    # where the geocoded road point sits at a bend rather than directly in front.
+    road_pt = Point(geocoded_lon, geocoded_lat)
+    nearest_on_boundary, _ = nearest_points(lot.boundary, road_pt)
+
+    front_edge_idx = 0
     for i in range(len(coords)):
         p1 = coords[i]
         p2 = coords[(i + 1) % len(coords)]
-        mid_lon = (p1[0] + p2[0]) / 2
-        mid_lat = (p1[1] + p2[1]) / 2
-        dist = math.sqrt((mid_lon - geocoded_lon) ** 2 + (mid_lat - geocoded_lat) ** 2)
-        if dist < closest_dist:
-            closest_dist = dist
-            closest_idx = i
+        if LineString([p1, p2]).distance(nearest_on_boundary) < 1e-8:
+            front_edge_idx = i
+            break
 
-    p1 = coords[closest_idx]
-    p2 = coords[(closest_idx + 1) % len(coords)]
+    p1 = coords[front_edge_idx]
+    p2 = coords[(front_edge_idx + 1) % len(coords)]
 
     # Lat-adjusted edge length (fixes ~17% E-W underestimate in compute_envelope.py)
     lat_rad = math.radians(geocoded_lat)
@@ -124,7 +126,7 @@ def compute_lot_dimensions(polygon_coords: list, geocoded_lat: float, geocoded_l
     return {
         "lot_area_sqm":   round(lot_area_sqm, 1),
         "front_width_m":  round(front_width_m, 1),
-        "front_edge_idx": closest_idx,
+        "front_edge_idx": front_edge_idx,
     }
 
 
