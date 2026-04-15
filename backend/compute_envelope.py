@@ -45,6 +45,109 @@ def get_front_edge(polygon_coords: list, geocoded_lon: float, geocoded_lat: floa
     return front_idx, (mid_x, mid_y)
 
 
+def _apply_directional_setbacks(
+    lot: Polygon,
+    coords: list,
+    front_edge_idx: int,
+    front_setback_deg: float,
+    rear_setback_deg: float,
+    side_setback_deg: float,
+) -> Polygon:
+    """
+    Clip the lot polygon by offsetting each edge inward by the correct setback.
+
+    Algorithm: for each edge, build a half-plane (large rectangle on the inward
+    side of the offset edge) and intersect the current result with it.
+    This correctly separates front, rear, and side setbacks instead of averaging.
+
+    Args:
+        lot:               Shapely Polygon of the lot.
+        coords:            List of [lon, lat] ring points (closing point included).
+        front_edge_idx:    Index of the front edge start vertex (from get_front_edge).
+        *_setback_deg:     Setback distances already converted to decimal degrees.
+
+    Returns:
+        Shapely Polygon of the buildable area (may be MultiPolygon for odd lots).
+    """
+    ring = coords[:-1]  # drop closing duplicate
+    n = len(ring)
+    if n < 3:
+        return lot
+
+    # ── Identify rear edge (midpoint furthest from front edge midpoint) ──────
+    fp1 = ring[front_edge_idx]
+    fp2 = ring[(front_edge_idx + 1) % n]
+    front_mid_x = (fp1[0] + fp2[0]) / 2
+    front_mid_y = (fp1[1] + fp2[1]) / 2
+
+    rear_edge_idx = 0
+    max_dist = -1.0
+    for i in range(n):
+        if i == front_edge_idx:
+            continue
+        p1 = ring[i]
+        p2 = ring[(i + 1) % n]
+        mx = (p1[0] + p2[0]) / 2
+        my = (p1[1] + p2[1]) / 2
+        d = (mx - front_mid_x) ** 2 + (my - front_mid_y) ** 2
+        if d > max_dist:
+            max_dist = d
+            rear_edge_idx = i
+
+    # ── Clip lot edge by edge ────────────────────────────────────────────────
+    result = lot
+    centroid = lot.centroid
+
+    for i in range(n):
+        p1 = ring[i]
+        p2 = ring[(i + 1) % n]
+
+        # Choose setback for this edge
+        if i == front_edge_idx:
+            sb = front_setback_deg
+        elif i == rear_edge_idx:
+            sb = rear_setback_deg
+        else:
+            sb = side_setback_deg
+
+        # Edge direction vector
+        dx = p2[0] - p1[0]
+        dy = p2[1] - p1[1]
+        length = math.sqrt(dx ** 2 + dy ** 2)
+        if length < 1e-12:
+            continue  # degenerate edge — skip
+
+        # Unit vectors: along edge (ux, uy) and perpendicular (nx, ny)
+        ux, uy = dx / length, dy / length
+        nx, ny = uy, -ux  # 90° CCW rotation
+
+        # Ensure normal points inward (toward centroid)
+        mx = (p1[0] + p2[0]) / 2
+        my = (p1[1] + p2[1]) / 2
+        if nx * (centroid.x - mx) + ny * (centroid.y - my) < 0:
+            nx, ny = -nx, -ny
+
+        # Offset edge inward by setback
+        op1 = (p1[0] + nx * sb, p1[1] + ny * sb)
+        op2 = (p2[0] + nx * sb, p2[1] + ny * sb)
+
+        # Build half-plane: big rectangle on the inward side of the offset edge.
+        # Extend 2° in every direction so it always covers the entire lot.
+        BIG = 2.0
+        half_plane = Polygon([
+            (op1[0] - ux * BIG,           op1[1] - uy * BIG),
+            (op2[0] + ux * BIG,           op2[1] + uy * BIG),
+            (op2[0] + ux * BIG + nx * BIG, op2[1] + uy * BIG + ny * BIG),
+            (op1[0] - ux * BIG + nx * BIG, op1[1] - uy * BIG + ny * BIG),
+        ])
+
+        result = result.intersection(half_plane)
+        if result.is_empty:
+            break
+
+    return result
+
+
 def compute_envelope(lot_polygon: dict, rules: list,
                      geocoded_lat: float, geocoded_lon: float) -> dict:
     """
@@ -64,7 +167,7 @@ def compute_envelope(lot_polygon: dict, rules: list,
     print(f"  Lot area: {lot_area_sqm:.1f} sqm")
 
     # Identify front edge using geocoded point
-    front_edge_idx, front_midpoint = get_front_edge(
+    front_edge_idx, _ = get_front_edge(
         coords, geocoded_lon, geocoded_lat
     )
 
@@ -124,12 +227,17 @@ def compute_envelope(lot_polygon: dict, rules: list,
           f"side (ground): {side_setback*111000:.1f}m, "
           f"side (upper): {side_setback_upper*111000:.1f}m")
 
-    # Apply uniform inward buffer using ground floor side setback
-    # Week 2 will apply directional setbacks per edge
-    avg_setback = (front_setback + rear_setback + side_setback) / 3
-    envelope = lot.buffer(-avg_setback)
+    # Apply directional setbacks: clip the lot with a half-plane per edge.
+    # Each edge is offset inward by its specific setback (front / rear / side).
+    # This replaces the previous uniform average buffer which was inaccurate
+    # by up to 50% for lots where front >> side (4.5m vs 0.9m in Canada Bay R2).
+    # front_edge_idx already computed above by get_front_edge.
+    envelope = _apply_directional_setbacks(
+        lot, coords, front_edge_idx,
+        front_setback, rear_setback, side_setback
+    )
 
-    if envelope.is_empty:
+    if envelope is None or envelope.is_empty:
         raise ValueError("Lot is too small for the required setbacks!")
 
     envelope_area_sqm = envelope.area * (111000 ** 2)
