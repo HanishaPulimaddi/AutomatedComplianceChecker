@@ -1,43 +1,48 @@
 import json
 import math
-from shapely.geometry import Polygon, mapping
+from shapely.geometry import Polygon, Point, LineString, mapping
+from shapely.ops import nearest_points
 
 
 def get_front_edge(polygon_coords: list, geocoded_lon: float, geocoded_lat: float) -> tuple:
     """
     Identify the front edge of the lot (the one facing the street).
-    The edge whose midpoint is closest to the geocoded point (which lands on the road)
-    is the front edge.
+
+    Uses nearest point on the polygon boundary to the geocoded road point.
+    This is more robust than closest-midpoint for crescent roads and corner
+    lots where the geocoded point sits at a bend rather than directly in front.
     """
     coords = polygon_coords[:-1]  # remove closing point
-    closest_idx = 0
-    closest_dist = float("inf")
+    lot = Polygon(polygon_coords)
+    road_pt = Point(geocoded_lon, geocoded_lat)
 
+    nearest_on_boundary, _ = nearest_points(lot.boundary, road_pt)
+
+    front_idx = 0
     for i in range(len(coords)):
         p1 = coords[i]
         p2 = coords[(i + 1) % len(coords)]
-        
+        if LineString([p1, p2]).distance(nearest_on_boundary) < 1e-8:
+            front_idx = i
+            break
 
-        mid_x = (p1[0] + p2[0]) / 2
-        mid_y = (p1[1] + p2[1]) / 2
+    p1 = coords[front_idx]
+    p2 = coords[(front_idx + 1) % len(coords)]
 
-        dist = math.sqrt((mid_x - geocoded_lon)**2 + (mid_y - geocoded_lat)**2)
+    lat_rad = math.radians(geocoded_lat)
+    dx_m = (p2[0] - p1[0]) * 111000 * math.cos(lat_rad)
+    dy_m = (p2[1] - p1[1]) * 111000
+    edge_length = math.sqrt(dx_m**2 + dy_m**2)
 
-        if dist < closest_dist:
-            closest_dist = dist
-            closest_idx = i
-
-    p1 = coords[closest_idx]
-    p2 = coords[(closest_idx + 1) % len(coords)]
-    edge_length = math.sqrt((p2[0] - p1[0])**2 + (p2[1] - p1[1])**2) * 111000
+    dist_m = road_pt.distance(nearest_on_boundary) * 111000
     mid_x = (p1[0] + p2[0]) / 2
     mid_y = (p1[1] + p2[1]) / 2
 
-    print(f"  Front edge: index {closest_idx}, "
+    print(f"  Front edge: index {front_idx}, "
           f"length {edge_length:.1f}m, "
-          f"dist to road {closest_dist*111000:.1f}m")
+          f"dist to road {dist_m:.1f}m")
 
-    return closest_idx, (mid_x, mid_y)
+    return front_idx, (mid_x, mid_y)
 
 
 def compute_envelope(lot_polygon: dict, rules: list,
