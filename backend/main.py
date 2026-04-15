@@ -3,14 +3,12 @@ import sys
 import os
 import time
 from pathlib import Path
-import json
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_PATH = BASE_DIR / "data" / "cached_lots.json"
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -19,7 +17,6 @@ from compute_envelope import compute_envelope
 
 app = FastAPI(title="Automated Compliance Checker", version="1.0.0")
 
-# CORS — allows the React web app at localhost:5173 to call this API
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
@@ -33,6 +30,21 @@ with open("../data/rules_r2_canada_bay.json") as f:
 
 RULES = [r for r in ALL_RULES if r.get("confidence", 0) >= 0.8]
 print(f"Loaded {len(RULES)} rules at startup")
+
+# Load DCP chunks (Part C + Part E)
+def _load_jsonl(path):
+    chunks = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                chunks.append(json.loads(line))
+    return chunks
+
+CHUNKS_PART_C = _load_jsonl("../data/chunks_canada_bay_dcp_part_c.jsonl")
+CHUNKS_PART_E = _load_jsonl("../data/chunks_canada_bay_dcp_part_e.jsonl")
+ALL_CHUNKS = CHUNKS_PART_C + CHUNKS_PART_E
+print(f"Loaded {len(CHUNKS_PART_C)} Part C chunks, {len(CHUNKS_PART_E)} Part E chunks")
 
 
 # ── Request models ──────────────────────────────────────────
@@ -73,6 +85,26 @@ def save_to_cache(address: str, lot_data: dict):
 @app.get("/")
 def root():
     return {"status": "ok", "message": "Compliance Checker API running"}
+
+
+@app.get("/chunks")
+def search_chunks(
+    q: str = Query(default="", description="Keyword to search in chunk text"),
+    part: str = Query(default="", description="Filter by part: 'c' or 'e'"),
+    limit: int = Query(default=20, le=100),
+):
+    """Search DCP chunks by keyword and/or part (c/e)."""
+    pool = ALL_CHUNKS
+    if part.lower() == "c":
+        pool = CHUNKS_PART_C
+    elif part.lower() == "e":
+        pool = CHUNKS_PART_E
+
+    if q:
+        q_lower = q.lower()
+        pool = [ch for ch in pool if q_lower in ch["text"].lower()]
+
+    return {"total": len(pool), "chunks": pool[:limit]}
 
 
 @app.post("/site")
