@@ -51,8 +51,9 @@ with open(DATA_DIR / "rules_inner_west_ashfield.json", encoding="utf-8") as f:
 with open(DATA_DIR / "rules_inner_west_lep.json", encoding="utf-8") as f:
     IW_LEP = json.load(f)
 
-IW_MARRICKVILLE = IW_MARRICKVILLE + IW_LEP
-IW_ASHFIELD     = IW_ASHFIELD     + IW_LEP
+# LEP first so it takes precedence over DCP in first-match rule lookups
+IW_MARRICKVILLE = IW_LEP + IW_MARRICKVILLE
+IW_ASHFIELD     = IW_LEP + IW_ASHFIELD
 
 print(f"Loaded Inner West R2 rules — Marrickville: {len(IW_MARRICKVILLE)}, "
       f"Ashfield: {len(IW_ASHFIELD)} (each includes {len(IW_LEP)} LEP rules)")
@@ -242,14 +243,23 @@ def get_envelope(req: EnvelopeRequest):
             lot_data = {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon}
             save_to_cache(req.address, lot_data)
 
-        envelope = compute_envelope(polygon, rules, lat, lon)
+        # Pre-filter rules by zone + dwelling_type before passing to
+        # compute_envelope so its first-match logic picks the correct rule
+        # (e.g. 0.9m dwelling_house setback, not 1.5m secondary_dwelling;
+        # 8.5m LEP height, not 6m DS23.1 outbuilding wall height).
+        envelope_rules = [
+            r for r in rules
+            if r.get("zone") in (zone, "all_residential", "all")
+            and r.get("dwelling_type") in ("dwelling_house", "all")
+        ]
+        envelope = compute_envelope(polygon, envelope_rules, lat, lon)
 
         applied_params = {
             "front_setback", "rear_setback", "rear_setback_upper",
             "side_setback_ground", "side_setback_upper",
             "max_height", "max_storeys", "height_plane",
-            "landscaped_area_pct", "private_open_space",
-            "private_open_space_min_dimension"
+            "landscaped_area_pct", "site_coverage_pct",
+            "private_open_space", "private_open_space_min_dimension"
         }
 
         applied_rules = [

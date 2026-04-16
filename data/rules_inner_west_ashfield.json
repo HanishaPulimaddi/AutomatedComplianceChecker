@@ -169,7 +169,7 @@
     "value": 1,
     "unit": "m",
     "operator": "min",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "accessory_structure",
     "storey_applicability": "not_specified",
     "lot_type": "not_specified",
     "conditions": [
@@ -223,7 +223,7 @@
     "value": 1,
     "unit": "m",
     "operator": "min",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "accessory_structure",
     "storey_applicability": "not_specified",
     "lot_type": "all",
     "conditions": [
@@ -737,7 +737,7 @@
     "value": 3.6,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "accessory_structure",
     "storey_applicability": "all_storeys",
     "lot_type": "not_specified",
     "conditions": [
@@ -765,7 +765,7 @@
     "value": 6,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "accessory_structure",
     "storey_applicability": "all_storeys",
     "lot_type": "not_specified",
     "conditions": [
@@ -954,7 +954,7 @@
   },
   {
     "rule_id": "iw_dcp_f_113_r1",
-    "parameter": "max_height",
+    "parameter": "max_floor_plate_height",
     "zone": "R2",
     "lga": "Inner West Council",
     "value": 3.4,
