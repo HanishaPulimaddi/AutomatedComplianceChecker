@@ -14,8 +14,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from nsw_apis import geocode, get_lot_polygon, get_zone
-from compute_envelope import compute_envelope
-from check_lmr import check_lmr_eligibility
+from compute_envelope import compute_envelope_result
+from check_lmr import check_lmr_eligibility, get_lmr_status
+from merge_rules import get_applicable_rules as merge_applicable_rules
 
 app = FastAPI(title="Automated Compliance Checker", version="1.0.0")
 
@@ -60,6 +61,9 @@ class SiteRequest(BaseModel):
 
 class EnvelopeRequest(BaseModel):
     address: str
+    dwelling_type: str = "dwelling_house"
+    lot_type: str = "single_frontage"
+    housing_type: str | None = None
 
 
 # ── Helper: check cache first ────────────────────────────────
@@ -91,6 +95,36 @@ def save_to_cache(address: str, lot_data: dict):
     cache[address] = lot_data
     with open(CACHE_PATH, "w") as f:
         json.dump(cache, f, indent=2)
+
+
+def _pdf_link_for_rule(rule: dict) -> str:
+    source_doc = rule.get("source_document", "").lower()
+    page = rule.get("source_page", 1)
+    if "housing sepp" in source_doc or rule.get("source_type") == "sepp_manual":
+        return f"/docs/housing_sepp_2021.pdf#page={page}"
+    if "part c" in source_doc:
+        return f"/docs/canada_bay_dcp_part_c.pdf#page={page}"
+    return f"/docs/canada_bay_dcp_part_e.pdf#page={page}"
+
+
+def _rule_citation(rule: dict) -> dict:
+    return {
+        "rule_id": rule.get("rule_id", ""),
+        "parameter": rule.get("parameter", ""),
+        "value": rule.get("value"),
+        "unit": rule.get("unit", ""),
+        "operator": rule.get("operator", ""),
+        "clause": rule.get("source_clause", ""),
+        "page": rule.get("source_page", 0),
+        "text": rule.get("source_text", ""),
+        "conditions": rule.get("conditions", []),
+        "exceptions": rule.get("exceptions", []),
+        "source_document": rule.get("source_document", ""),
+        "source_type": rule.get("source_type", ""),
+        "confidence": rule.get("confidence"),
+        "verified": rule.get("verified", False),
+        "pdf_link": _pdf_link_for_rule(rule),
+    }
 
 
 # ── Endpoints ───────────────────────────────────────────────
@@ -187,8 +221,36 @@ def get_envelope(req: EnvelopeRequest):
             lot_data = {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon}
             save_to_cache(req.address, lot_data)
 
-        # Compute envelope
-        envelope = compute_envelope(polygon, RULES, lat, lon)
+        lmr_info = get_lmr_status(lat, lon)
+        lmr_status = lmr_info.get("status")
+        effective_lmr_status = lmr_status if req.housing_type else None
+
+        merged = merge_applicable_rules(
+            dcp_rules=RULES,
+            sepp_rules=SEPP_RULES,
+            zone=zone,
+            dwelling_type=req.dwelling_type,
+            lot_type=req.lot_type,
+            lmr_status=effective_lmr_status,
+            housing_type=req.housing_type,
+        )
+        effective_rules = merged["applied_rules"]
+        source_breakdown = merged["source_summary"]
+        source_breakdown.update({
+            "lmr_status": lmr_status or "not in LMR area",
+            "effective_lmr_status": effective_lmr_status or "not applied",
+            "housing_type": req.housing_type,
+            "sepp_overrides_applied": bool(effective_lmr_status and req.housing_type),
+            "note": (
+                "SEPP overrides require housing_type in the /envelope request"
+                if lmr_status and not req.housing_type
+                else ""
+            ),
+        })
+
+        envelope_result = compute_envelope_result(polygon, effective_rules, lat, lon)
+        envelope = envelope_result["envelope"]
+        development_controls = envelope_result["development_controls"]
 
         # Find which rules were actually applied — filter by zone so R2-only
         # rules don't appear for R3 lots (or vice versa).
@@ -197,15 +259,18 @@ def get_envelope(req: EnvelopeRequest):
             "side_setback_ground", "side_setback_upper",
             "max_height", "max_storeys", "height_plane",
             "landscaped_area_pct", "private_open_space",
-            "private_open_space_min_dimension"
+            "private_open_space_min_dimension", "fsr",
+            "min_lot_size", "min_lot_width",
+            "min_parking_per_dwelling",
+            "subdivision_min_lot_size", "subdivision_min_lot_width"
         }
 
         applied_rules = [
-            r for r in RULES
+            r for r in effective_rules
             if r.get("parameter") in applied_params
             and r.get("zone") in (zone, "all_residential")
-            and r.get("dwelling_type") in ("dwelling_house", "all")
-            and r.get("lot_type") in ("single_frontage", "all", "not_specified")
+            and r.get("dwelling_type") in (req.dwelling_type, req.housing_type, "all")
+            and r.get("lot_type") in (req.lot_type, "all", "not_specified")
         ]
 
         citations = []
@@ -220,15 +285,24 @@ def get_envelope(req: EnvelopeRequest):
                 "text": r.get("source_text", ""),
                 "conditions": r.get("conditions", []),
                 "exceptions": r.get("exceptions", []),
-                "pdf_link": f"/docs/canada_bay_dcp_part_e.pdf#page={r.get('source_page', 1)}"
+                "source_document": r.get("source_document", ""),
+                "source_type": r.get("source_type", ""),
+                "confidence": r.get("confidence"),
+                "verified": r.get("verified", False),
+                "pdf_link": _pdf_link_for_rule(r)
             })
 
         return {
             "address":       req.address,
+            "lga":           cached.get("lga") if cached else None,
+            "suburb":        cached.get("suburb") if cached else None,
             "zone":          zone,
             "lot_polygon":   polygon,
             "envelope":      envelope,
-            "rules_applied": citations
+            "development_controls": development_controls,
+            "rules_applied": citations,
+            "lmr_info":      lmr_info,
+            "rule_source_breakdown": source_breakdown,
         }
 
     except ValueError as e:

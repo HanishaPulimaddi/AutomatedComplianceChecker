@@ -3,7 +3,6 @@ address,suburb,lga,zone,front_setback_m,side_setback_1st_m,side_setback_2nd_m,re
 28 Clare Crescent Russell Lea 2046,Russell Lea,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 18 Spring Street Abbotsford 2046,Abbotsford,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 12 Campbell Street Abbotsford 2046,Abbotsford,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
-114 Hampden Road Abbotsford 2046,Abbotsford,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 4 Feilberg Place Abbotsford 2046,Abbotsford,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 7 Moore Street Cabarita 2137,Cabarita,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 6 Stamford Avenue Cabarita 2137,Cabarita,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
@@ -14,10 +13,8 @@ address,suburb,lga,zone,front_setback_m,side_setback_1st_m,side_setback_2nd_m,re
 44 Cabarita Road Concord 2137,Concord,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 23 Flavelle Street Concord 2137,Concord,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 12 Rhonda Place Concord 2137,Concord,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
-14 Formosa Street Drummoyne 2047,Drummoyne,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 47 Henry Street Five Dock 2046,Five Dock,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 17 Preston Avenue Five Dock 2046,Five Dock,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
-23 Fairlight Street Five Dock 2046,Five Dock,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 10 Great North Road Five Dock 2046,Five Dock,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 7 Atkins Avenue Russell Lea 2046,Russell Lea,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 18 Speed Avenue Russell Lea 2046,Russell Lea,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
@@ -26,8 +23,19 @@ address,suburb,lga,zone,front_setback_m,side_setback_1st_m,side_setback_2nd_m,re
 9 Lea Avenue Russell Lea 2046,Russell Lea,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 8 Cecil Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 31 Gartfern Avenue Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
-103 Edenholme Road Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
-101 Edenholme Road Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 12 Coranto Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 7 Kirrang Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 14 Wareemba Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Bickleigh Street Abbotsford 2046,Abbotsford,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Campbell Street Abbotsford 2046,Abbotsford,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Stamford Avenue Cabarita 2137,Cabarita,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Albion Street Concord 2137,Concord,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Anderson Road Concord 2137,Concord,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Bradley Street Drummoyne 2047,Drummoyne,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+10 Collingwood Avenue Cabarita 2137,Cabarita,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Bayview Street Concord 2137,Concord,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Brays Road Concord 2137,Concord,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Wareemba Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Kirrang Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Coranto Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+1 Atkins Avenue Russell Lea 2046,Russell Lea,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
