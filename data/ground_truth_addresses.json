@@ -1,0 +1,92 @@
+[
+  {
+    "lga": "Marrickville",
+    "address": "24 Calvert Street, Marrickville NSW 2204",
+    "expected_zone": "R2",
+    "check": {
+      "side_setback_ground": "0.9m (lot >= 8m wide, 1-storey)",
+      "side_setback_upper": "1.5m (2-storey), 2.5m (3-storey)",
+      "site_coverage_pct": "depends on lot area: typically 40-55%",
+      "max_height": "8.5m (LEP)",
+      "parking": "1 space per dwelling",
+      "front_fence_solid": "1.2m max (up to 1.5m on slope)",
+      "side_fence": "1.2m at driveway, 1.8m behind building line",
+      "rear_fence": "1.8m max"
+    },
+    "note": "Typical Marrickville terrace/semi block. Front/rear setback qualitative only."
+  },
+  {
+    "lga": "Marrickville",
+    "address": "8 New Canterbury Road, Petersham NSW 2049",
+    "expected_zone": "R2",
+    "check": {
+      "side_setback_ground": "0.9m (lot >= 8m, 1-storey)",
+      "site_coverage_pct": "40-55% depending on lot area",
+      "max_height": "8.5m (LEP)",
+      "fsr": "0.6-0.9 depending on lot area (LEP cl 4.4)"
+    },
+    "note": "Corner lot — secondary street setback applies at Councils discretion."
+  },
+  {
+    "lga": "Ashfield",
+    "address": "17 Frederick Street, Ashfield NSW 2131",
+    "expected_zone": "R2",
+    "check": {
+      "front_setback": "1m min from front building line for garage",
+      "side_setback_ground": "0.9m min",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% depending on lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% depending on lot area (DS8.2)",
+      "private_open_space": "20m2 min with 3.5m dimension (DS9.1)",
+      "max_driveway_width": "3m (DS10.1)",
+      "front_fence_open": "1.2m max (DS7.2)",
+      "side_fence": "1.8m max (DS7.1)",
+      "max_height": "12.5m LEP — wall height 6m DCP is the binding control"
+    },
+    "note": "Standard Ashfield dwelling house. DCP Chapter F applies."
+  },
+  {
+    "lga": "Ashfield",
+    "address": "45 Bland Street, Ashfield NSW 2131",
+    "expected_zone": "R2",
+    "check": {
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "1m min from rear boundary for laneway garages (DS6.5)",
+      "height_plane": "30 degrees max roof pitch (DS14.3)",
+      "building_separation": "9m (unscreened facing windows), 6m (screened)",
+      "fsr": "0.6-1.1 depending on lot area (LEP cl 4.4)"
+    },
+    "note": "Check building separation rules carefully for dual occupancy context."
+  },
+  {
+    "lga": "Leichhardt",
+    "address": "36 Norton Street, Leichhardt NSW 2040",
+    "expected_zone": "R2",
+    "check": {
+      "side_setback_ground": "0m (single storey, wall <= 2.8m) — from Figure C129",
+      "side_setback_upper": "1.5-1.8m (2-storey ~5.3-5.8m wall) — Figure C129",
+      "max_wall_height": "one of 2.4 / 3.6 / 6.0 / 7.2m (Distinctive Neighbourhood envelope)",
+      "height_plane": "45 degrees from top of wall (C3.2 C16)",
+      "private_open_space": "16m2 min with 3m dimension (C3.8 C1)",
+      "front_fence_solid": "1.2m max (C3.6 C4)",
+      "max_height": "8.5m (LEP)",
+      "fsr": "0.6-0.9 depending on lot area (LEP cl 4.4)",
+      "parking": "max 2 spaces (Table C4)"
+    },
+    "note": "BLZ controls front/rear setback — match neighbours. No fixed numeric standard."
+  },
+  {
+    "lga": "Leichhardt",
+    "address": "12 Annandale Street, Annandale NSW 2038",
+    "expected_zone": "R2",
+    "check": {
+      "side_setback_ground": "0m single storey, 1.5m two-storey — Figure C129",
+      "side_setback_upper": "1.8m at ~5.8m wall height — Figure C129",
+      "height_plane": "45 degrees inclined plane from wall top (C3.2 C16)",
+      "private_open_space": "16m2 min (C3.8 C1)",
+      "front_fence_open": "1.2m max (C3.6 C4/C6)"
+    },
+    "note": "Annandale heritage conservation area — heritage rules also apply (not in rules file)."
+  }
+]

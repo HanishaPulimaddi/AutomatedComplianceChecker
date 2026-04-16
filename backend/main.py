@@ -1,6 +1,7 @@
 import json
 import sys
 import os
+import re
 import time
 from pathlib import Path
 
@@ -26,18 +27,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load rules once at startup
+# ── Load rules once at startup ───────────────────────────────
+
+# Canada Bay (confidence-filtered)
 with open(DATA_DIR / "rules_r2_canada_bay.json") as f:
     ALL_RULES = json.load(f)
-
 RULES = [r for r in ALL_RULES if r.get("confidence", 0) >= 0.8]
-print(f"Loaded {len(RULES)} rules at startup")
+print(f"Loaded {len(RULES)} Canada Bay rules")
 
+# Housing SEPP Ch6 (LMR)
 with open(DATA_DIR / "rules_housing_sepp_ch6.json") as f:
     SEPP_RULES = json.load(f)
-print(f"Loaded {len(SEPP_RULES)} SEPP Ch6 rules at startup")
+print(f"Loaded {len(SEPP_RULES)} SEPP Ch6 rules")
 
-# Load DCP chunks (Part C + Part E)
+# Inner West Council — 3 former LGAs (manually cleaned, no confidence filter)
+with open(DATA_DIR / "rules_inner_west_marrickville.json", encoding="utf-8") as f:
+    IW_MARRICKVILLE = json.load(f)
+with open(DATA_DIR / "rules_inner_west_ashfield.json", encoding="utf-8") as f:
+    IW_ASHFIELD = json.load(f)
+with open(DATA_DIR / "rules_inner_west_leichhardt.json", encoding="utf-8") as f:
+    IW_LEICHHARDT = json.load(f)
+
+# Inner West LEP 2022 — applies to all 3 former LGAs
+with open(DATA_DIR / "rules_inner_west_lep.json", encoding="utf-8") as f:
+    IW_LEP = json.load(f)
+
+# Merge LEP rules into each LGA's rule set (LEP overrides for same parameter
+# are handled at query time via zone/condition filtering)
+IW_MARRICKVILLE = IW_MARRICKVILLE + IW_LEP
+IW_ASHFIELD     = IW_ASHFIELD     + IW_LEP
+IW_LEICHHARDT   = IW_LEICHHARDT   + IW_LEP
+
+print(f"Loaded Inner West rules — Marrickville: {len(IW_MARRICKVILLE)}, "
+      f"Ashfield: {len(IW_ASHFIELD)}, Leichhardt: {len(IW_LEICHHARDT)} "
+      f"(each includes {len(IW_LEP)} LEP rules)")
+
+# Load DCP chunks (Part C + Part E) — Canada Bay only for now
 def _load_jsonl(path: Path):
     chunks = []
     with open(path) as f:
@@ -51,6 +76,42 @@ CHUNKS_PART_C = _load_jsonl(DATA_DIR / "chunks_canada_bay_dcp_part_c.jsonl")
 CHUNKS_PART_E = _load_jsonl(DATA_DIR / "chunks_canada_bay_dcp_part_e.jsonl")
 ALL_CHUNKS = CHUNKS_PART_C + CHUNKS_PART_E
 print(f"Loaded {len(CHUNKS_PART_C)} Part C chunks, {len(CHUNKS_PART_E)} Part E chunks")
+
+
+# ── LGA routing ─────────────────────────────────────────────
+
+# Suburb (uppercase) → (rules_list, lga_label, pdf_doc_name)
+_IW_SUBURB_MAP: dict[str, tuple[list, str, str]] = {}
+
+for suburb in [
+    "MARRICKVILLE", "TEMPE", "ST PETERS", "SYDENHAM", "DULWICH HILL",
+    "HURLSTONE PARK", "PETERSHAM", "STANMORE", "ENMORE", "CAMPERDOWN",
+    "NEWTOWN", "LEWISHAM", "SUMMER HILL",
+]:
+    _IW_SUBURB_MAP[suburb] = (IW_MARRICKVILLE, "Inner West Council", "marrickville_dcp")
+
+for suburb in ["ASHFIELD", "CROYDON", "CROYDON PARK", "HABERFIELD", "DOBROYD POINT"]:
+    _IW_SUBURB_MAP[suburb] = (IW_ASHFIELD, "Inner West Council", "ashfield_dcp")
+
+for suburb in [
+    "LEICHHARDT", "ANNANDALE", "LILYFIELD", "GLEBE", "FOREST LODGE",
+    "ROZELLE", "BALMAIN", "BALMAIN EAST", "BIRCHGROVE",
+]:
+    _IW_SUBURB_MAP[suburb] = (IW_LEICHHARDT, "Inner West Council", "leichhardt_dcp")
+
+
+def get_rules_for_address(address: str) -> tuple[list, str, str]:
+    """
+    Return (rules_list, lga_label, pdf_doc) for the given address string.
+    Matches suburb tokens against the Inner West suburb map;
+    falls back to Canada Bay if no match is found.
+    """
+    upper = address.upper()
+    for suburb, info in _IW_SUBURB_MAP.items():
+        # Match as a whole word so "ST PETERS" doesn't match "PETERSHAM"
+        if re.search(r'\b' + re.escape(suburb) + r'\b', upper):
+            return info
+    return (RULES, "Canada Bay Council", "canada_bay_dcp_part_e")
 
 
 # ── Request models ──────────────────────────────────────────
@@ -71,7 +132,6 @@ def get_cached_lot(address: str):
     try:
         with open(CACHE_PATH) as f:
             cache = json.load(f)
-        # Strip stray whitespace from keys written by earlier run_apis.py runs
         cache = {k.strip(): v for k, v in cache.items()}
         if address in cache:
             print(f"  Cache hit: {address}")
@@ -123,11 +183,12 @@ def search_chunks(
 @app.post("/site")
 def get_site(req: SiteRequest):
     """
-    Given an address, return the lot polygon and zone.
+    Given an address, return the lot polygon, zone, and detected LGA.
     Checks cache first, fetches from NSW APIs if not cached.
     """
     try:
-        # Check cache first
+        _, lga, _ = get_rules_for_address(req.address)
+
         cached = get_cached_lot(req.address)
         if cached:
             return {
@@ -136,10 +197,10 @@ def get_site(req: SiteRequest):
                 "lon":      cached["lon"],
                 "zone":     cached["zone"],
                 "polygon":  cached["polygon"],
+                "lga":      lga,
                 "cached":   True
             }
 
-        # Not in cache — fetch from NSW APIs
         print(f"Fetching from NSW APIs: {req.address}")
         lat, lon = geocode(req.address)
         time.sleep(0.5)
@@ -155,6 +216,7 @@ def get_site(req: SiteRequest):
             "lon":      lon,
             "zone":     zone,
             "polygon":  polygon,
+            "lga":      lga,
             "cached":   False
         }
 
@@ -168,10 +230,11 @@ def get_site(req: SiteRequest):
 def get_envelope(req: EnvelopeRequest):
     """
     Given an address, return the buildable envelope polygon
-    computed from the lot polygon and DCP rules.
+    computed from the lot polygon and DCP rules for the correct LGA.
     """
     try:
-        # Get site data (from cache or NSW APIs)
+        rules, lga, pdf_doc = get_rules_for_address(req.address)
+
         cached = get_cached_lot(req.address)
         if cached:
             lat     = cached["lat"]
@@ -187,11 +250,8 @@ def get_envelope(req: EnvelopeRequest):
             lot_data = {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon}
             save_to_cache(req.address, lot_data)
 
-        # Compute envelope
-        envelope = compute_envelope(polygon, RULES, lat, lon)
+        envelope = compute_envelope(polygon, rules, lat, lon)
 
-        # Find which rules were actually applied — filter by zone so R2-only
-        # rules don't appear for R3 lots (or vice versa).
         applied_params = {
             "front_setback", "rear_setback", "rear_setback_upper",
             "side_setback_ground", "side_setback_upper",
@@ -201,9 +261,9 @@ def get_envelope(req: EnvelopeRequest):
         }
 
         applied_rules = [
-            r for r in RULES
+            r for r in rules
             if r.get("parameter") in applied_params
-            and r.get("zone") in (zone, "all_residential")
+            and r.get("zone") in (zone, "all_residential", "all")
             and r.get("dwelling_type") in ("dwelling_house", "all")
             and r.get("lot_type") in ("single_frontage", "all", "not_specified")
         ]
@@ -212,19 +272,20 @@ def get_envelope(req: EnvelopeRequest):
         for r in applied_rules:
             citations.append({
                 "parameter": r["parameter"],
-                "value": r["value"],
-                "unit": r["unit"],
-                "operator": r["operator"],
-                "clause": r.get("source_clause", ""),
-                "page": r.get("source_page", 0),
-                "text": r.get("source_text", ""),
+                "value":     r["value"],
+                "unit":      r["unit"],
+                "operator":  r["operator"],
+                "clause":    r.get("source_clause", ""),
+                "page":      r.get("source_page", 0),
+                "text":      r.get("source_text", ""),
                 "conditions": r.get("conditions", []),
                 "exceptions": r.get("exceptions", []),
-                "pdf_link": f"/docs/canada_bay_dcp_part_e.pdf#page={r.get('source_page', 1)}"
+                "pdf_link":  f"/docs/{pdf_doc}.pdf#page={r.get('source_page', 1)}"
             })
 
         return {
             "address":       req.address,
+            "lga":           lga,
             "zone":          zone,
             "lot_polygon":   polygon,
             "envelope":      envelope,
@@ -251,7 +312,6 @@ def get_lmr(req: SiteRequest):
     try:
         lot_data = get_cached_lot(req.address)
         if not lot_data:
-            # Fetch from NSW APIs if not cached
             print(f"Fetching from NSW APIs: {req.address}")
             lat, lon = geocode(req.address)
             time.sleep(0.5)
