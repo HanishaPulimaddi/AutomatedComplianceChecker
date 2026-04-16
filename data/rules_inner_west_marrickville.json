@@ -550,36 +550,6 @@
     "confidence": 0.95
   },
   {
-    "rule_id": "mrk_parking_016_r4",
-    "parameter": "parking_spaces_per_dwelling",
-    "zone": "all",
-    "lga": "Inner West Council",
-    "value": 1,
-    "unit": "spaces",
-    "operator": "eq",
-    "dwelling_type": "secondary_dwelling",
-    "storey_applicability": "not_specified",
-    "lot_type": "all",
-    "conditions": [
-      "Parking Area 1",
-      "1 per principal dwelling and secondary dwelling combined"
-    ],
-    "exceptions": [],
-    "related_rules": [
-      "Table 1",
-      "C1"
-    ],
-    "source_document": "Marrickville DCP 2011 Part 2.10 Parking",
-    "source_clause": "2.10.5 C1",
-    "source_page": 9,
-    "source_text": "1 per dwelling house or 1 per principal dwelling and secondary dwelling combined Parking Area 1",
-    "source_type": "dcp_extraction",
-    "superseded_by": null,
-    "verified": false,
-    "extracted_by": "claude-sonnet-4-6",
-    "confidence": 0.9
-  },
-  {
     "rule_id": "mrk_parking_046_r2",
     "parameter": "min_parking_space_width",
     "zone": "all",

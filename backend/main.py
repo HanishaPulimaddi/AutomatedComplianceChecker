@@ -255,11 +255,21 @@ def get_envelope(req: EnvelopeRequest):
         envelope = compute_envelope(polygon, envelope_rules, lat, lon)
 
         applied_params = {
+            # Setbacks
             "front_setback", "rear_setback", "rear_setback_upper",
             "side_setback_ground", "side_setback_upper",
-            "max_height", "max_storeys", "height_plane",
-            "landscaped_area_pct", "site_coverage_pct",
-            "private_open_space", "private_open_space_min_dimension"
+            # Height & bulk
+            "max_height", "max_storeys", "height_plane", "max_wall_height",
+            # Area controls
+            "landscaped_area_pct", "site_coverage_pct", "fsr",
+            "private_open_space", "private_open_space_min_dimension",
+            # Separation
+            "building_separation",
+            # Parking & access
+            "parking_spaces_per_dwelling", "max_driveway_width",
+            # Fencing
+            "front_fence_height_solid", "front_fence_height_open",
+            "side_fence_height", "rear_fence_height"
         }
 
         applied_rules = [

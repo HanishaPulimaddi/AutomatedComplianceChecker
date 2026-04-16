@@ -86,7 +86,13 @@ Each rule must have ALL of these fields:
 - dwelling_type: MUST be one of:
   ["dwelling_house", "dual_occupancy_attached", "dual_occupancy_detached",
    "semi_detached", "secondary_dwelling", "outbuilding", "all"]
-  Use "all" for parking/fencing rules that apply to multiple dwelling types.
+
+  CRITICAL dwelling_type rules:
+  - Use "dwelling_house" when the rule applies to dwelling houses (even if the text also mentions secondary dwellings in parentheses, e.g. "Dwelling houses (incl. attached, semi-detached and secondary dwellings)")
+  - Use "secondary_dwelling" ONLY when the rule EXCLUSIVELY applies to secondary dwellings and NOT to the principal/main dwelling
+  - Use "all" for parking/fencing rules that apply to multiple dwelling types
+  - In parking tables: the row "Dwelling houses (incl. ... secondary dwellings)" = dwelling_type="dwelling_house". Do NOT extract this row multiple times — extract it ONCE as dwelling_house.
+  - Do NOT create a separate secondary_dwelling rule from the same table cell that already produced a dwelling_house rule.
 
 - storey_applicability: one of:
   ["single_storey", "second_storey", "all_storeys", "not_specified"]
@@ -127,6 +133,9 @@ Each rule must have ALL of these fields:
 - Ashfield DS labels: DS3.1 = design solution, treat same as a Control
 - Do NOT extract qualitative rules without numbers
 - Do NOT invent numbers not in the text
+- Do NOT extract site-specific rules that name a specific street address or site (e.g. "67 Smith Street", "Item 3 on Diagram 1") — these only apply to one property
+- Do NOT extract rules about neighbouring/adjoining properties (e.g. solar access to neighbour's windows) — only extract rules that constrain the development being assessed
+- For parking tables with many land uses: ONLY extract the "Dwelling houses" row. Skip commercial, retail, industrial, recreation rows entirely.
 
 ## RETURN FORMAT
 
