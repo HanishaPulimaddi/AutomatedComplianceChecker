@@ -6,6 +6,7 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR  = BASE_DIR.parent / "data"
+SHARED_DIR = BASE_DIR.parent / "shared"
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -27,16 +28,70 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Load rules once at startup
-with open(DATA_DIR / "rules_r2_canada_bay.json") as f:
-    ALL_RULES = json.load(f)
+# Load rules once at startup.
+RULESET_CONFIG = {
+    "canada_bay": {
+        "file": "rules_r2_canada_bay.json",
+        "label": "City of Canada Bay",
+        "lga": "City of Canada Bay",
+        "coverage_tier": "production",
+    },
+    "inner_west_ashfield": {
+        "file": "rules_r2_ashfield.json",
+        "label": "Inner West (Ashfield)",
+        "lga": "Inner West",
+        "coverage_tier": "production",
+    },
+    "inner_west_leichhardt": {
+        "file": "rules_r2_leichhardt.json",
+        "label": "Inner West (Leichhardt)",
+        "lga": "Inner West",
+        "coverage_tier": "beta",
+    },
+    "inner_west_marrickville": {
+        "file": "rules_r2_marrickville.json",
+        "label": "Inner West (Marrickville)",
+        "lga": "Inner West",
+        "coverage_tier": "beta",
+    },
+}
 
-RULES = [r for r in ALL_RULES if r.get("confidence", 0) >= 0.8]
-print(f"Loaded {len(RULES)} rules at startup")
+INNER_WEST_RULE_KEY_BY_FILE = {
+    "rules_r2_ashfield.json": "inner_west_ashfield",
+    "rules_r2_leichhardt.json": "inner_west_leichhardt",
+    "rules_r2_marrickville.json": "inner_west_marrickville",
+}
+
+
+def _load_rules_file(filename: str, required: bool = False) -> list[dict] | None:
+    path = DATA_DIR / filename
+    if not path.exists():
+        if required:
+            raise FileNotFoundError(f"Required rules file missing: {path}")
+        print(f"Rules file not found yet: {filename}")
+        return None
+    with open(path) as f:
+        rules = json.load(f)
+    return [r for r in rules if r.get("confidence", 0) >= 0.8]
+
+
+RULESETS = {}
+for key, config in RULESET_CONFIG.items():
+    rules = _load_rules_file(config["file"], required=(key == "canada_bay"))
+    if rules is not None:
+        RULESETS[key] = rules
+        print(f"Loaded {len(rules)} rules for {config['label']}")
 
 with open(DATA_DIR / "rules_housing_sepp_ch6.json") as f:
     SEPP_RULES = json.load(f)
 print(f"Loaded {len(SEPP_RULES)} SEPP Ch6 rules at startup")
+
+try:
+    with open(SHARED_DIR / "inner_west_routing.json") as f:
+        INNER_WEST_ROUTING = json.load(f)
+except FileNotFoundError:
+    INNER_WEST_ROUTING = {}
+print(f"Loaded {len(INNER_WEST_ROUTING)} Inner West suburb routes")
 
 # Load DCP chunks (Part C + Part E)
 def _load_jsonl(path: Path):
@@ -95,6 +150,60 @@ def save_to_cache(address: str, lot_data: dict):
     cache[address] = lot_data
     with open(CACHE_PATH, "w") as f:
         json.dump(cache, f, indent=2)
+
+
+def _normalise_suburb(value: str | None) -> str:
+    if not value:
+        return ""
+    return value.strip().lower().replace("-", " ").replace(" ", "_")
+
+
+def _suburb_from_address(address: str) -> str:
+    address_key = _normalise_suburb(address)
+    for suburb_key in INNER_WEST_ROUTING:
+        if suburb_key in address_key:
+            return suburb_key
+    return ""
+
+
+def _select_rule_context(lot_data: dict, address: str) -> dict:
+    lga = lot_data.get("lga")
+    suburb = lot_data.get("suburb")
+    suburb_key = _normalise_suburb(suburb) or _suburb_from_address(address)
+
+    if lga == "Inner West" or suburb_key in INNER_WEST_ROUTING:
+        rule_file = INNER_WEST_ROUTING.get(suburb_key)
+        if not rule_file:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Inner West address needs a mapped suburb. Found suburb={suburb!r}.",
+            )
+
+        rule_key = INNER_WEST_RULE_KEY_BY_FILE[rule_file]
+        config = RULESET_CONFIG[rule_key]
+        rules = RULESETS.get(rule_key)
+        if rules is None:
+            raise HTTPException(
+                status_code=501,
+                detail=(
+                    f"{config['label']} routing is ready, but data/{rule_file} "
+                    "has not been created yet."
+                ),
+            )
+    else:
+        rule_key = "canada_bay"
+        config = RULESET_CONFIG[rule_key]
+        rules = RULESETS[rule_key]
+
+    return {
+        "rule_key": rule_key,
+        "rule_set": config["label"],
+        "rule_file": config["file"],
+        "lga": lga or config["lga"],
+        "suburb": suburb,
+        "coverage_tier": config["coverage_tier"],
+        "rules": rules,
+    }
 
 
 def _pdf_link_for_rule(rule: dict) -> str:
@@ -170,6 +279,8 @@ def get_site(req: SiteRequest):
                 "lon":      cached["lon"],
                 "zone":     cached["zone"],
                 "polygon":  cached["polygon"],
+                "lga":      cached.get("lga"),
+                "suburb":   cached.get("suburb"),
                 "cached":   True
             }
 
@@ -189,6 +300,8 @@ def get_site(req: SiteRequest):
             "lon":      lon,
             "zone":     zone,
             "polygon":  polygon,
+            "lga":      None,
+            "suburb":   None,
             "cached":   False
         }
 
@@ -212,6 +325,7 @@ def get_envelope(req: EnvelopeRequest):
             lon     = cached["lon"]
             zone    = cached["zone"]
             polygon = cached["polygon"]
+            lot_data = cached
         else:
             print(f"Fetching from NSW APIs: {req.address}")
             lat, lon = geocode(req.address)
@@ -221,12 +335,14 @@ def get_envelope(req: EnvelopeRequest):
             lot_data = {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon}
             save_to_cache(req.address, lot_data)
 
+        rule_context = _select_rule_context(lot_data, req.address)
+
         lmr_info = get_lmr_status(lat, lon)
         lmr_status = lmr_info.get("status")
         effective_lmr_status = lmr_status if req.housing_type else None
 
         merged = merge_applicable_rules(
-            dcp_rules=RULES,
+            dcp_rules=rule_context["rules"],
             sepp_rules=SEPP_RULES,
             zone=zone,
             dwelling_type=req.dwelling_type,
@@ -237,6 +353,9 @@ def get_envelope(req: EnvelopeRequest):
         effective_rules = merged["applied_rules"]
         source_breakdown = merged["source_summary"]
         source_breakdown.update({
+            "rule_set": rule_context["rule_set"],
+            "rule_file": rule_context["rule_file"],
+            "coverage_tier": rule_context["coverage_tier"],
             "lmr_status": lmr_status or "not in LMR area",
             "effective_lmr_status": effective_lmr_status or "not applied",
             "housing_type": req.housing_type,
@@ -294,8 +413,11 @@ def get_envelope(req: EnvelopeRequest):
 
         return {
             "address":       req.address,
-            "lga":           cached.get("lga") if cached else None,
-            "suburb":        cached.get("suburb") if cached else None,
+            "lga":           rule_context["lga"],
+            "suburb":        rule_context["suburb"],
+            "rule_set":      rule_context["rule_set"],
+            "rule_file":     rule_context["rule_file"],
+            "coverage_tier": rule_context["coverage_tier"],
             "zone":          zone,
             "lot_polygon":   polygon,
             "envelope":      envelope,
@@ -307,6 +429,8 @@ def get_envelope(req: EnvelopeRequest):
 
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
