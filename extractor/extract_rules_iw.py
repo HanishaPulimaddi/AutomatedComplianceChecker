@@ -1,11 +1,10 @@
 """
 extract_rules_iw.py — Extract structured rules from Inner West DCP chunks.
 
-Runs Claude on each of the 3 merged Inner West chunk files and writes
-one rules JSON per LGA:
+Runs Claude on each Inner West chunk file and writes one rules JSON per LGA
+(R2 Low Density Residential suburbs only):
   data/rules_inner_west_marrickville.json
   data/rules_inner_west_ashfield.json
-  data/rules_inner_west_leichhardt.json
 
 Extended parameter vocab vs Canada Bay extractor:
   - parking_spaces_per_dwelling, min_bicycle_spaces, max_driveway_width
@@ -296,13 +295,8 @@ TARGETS = [
         "lga":     "Inner West Council - Ashfield",
         "label":   "Ashfield",
     },
-    {
-        "chunks":  DATA_DIR / "chunks_inner_west_leichhardt.jsonl",
-        "output":  DATA_DIR / "rules_inner_west_leichhardt.json",
-        "lga":     "Inner West Council - Leichhardt",
-        "label":   "Leichhardt",
-    },
 ]
+# Former Leichhardt LGA (R1 General Residential) excluded — outside R2 scope.
 
 
 def process_target(target: dict):

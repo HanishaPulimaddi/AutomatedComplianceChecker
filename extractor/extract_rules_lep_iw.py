@@ -85,7 +85,7 @@ rules.append(rule(
 
 # ── Clause 4.4(2B) FSR — residential accommodation ───────────
 
-# Area 2 or 6  (mainly former Marrickville / Leichhardt medium-density pockets)
+# Area 2 or 6  (mainly former Marrickville medium-density pockets)
 fsr_2b_area2 = [
     (150,  None, 0.9),
     (300,  150,  0.8),

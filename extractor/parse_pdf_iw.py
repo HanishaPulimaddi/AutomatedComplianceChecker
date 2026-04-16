@@ -357,32 +357,8 @@ CONFIGS = [
         "skip_pages": 2,
     },
 
-    # ── Leichhardt Part C Section 3 (Residential) ──────────────────────────
-    {
-        "path":            str(BASE_DIR / "docs/inner_west_dcp_Leichhardt_part_C.pdf"),
-        "source_document": "Inner West DCP 2016 Leichhardt Part C (Residential)",
-        "chunk_prefix":    "iw_dcp_c3",
-        "output":          str(BASE_DIR / "data/chunks_leichhardt_dcp_c3.jsonl"),
-        # "C3.1"  (13pt bold)  →  "RESIDENTIAL GENERAL PROVISIONS"  (13pt bold)
-        # C\d+\.\d+ (must have a dot) distinguishes sections (C3.1) from controls (C1)
-        "section_pattern":      re.compile(r"^(C\d+(?:\.\d+)+)\s+(.+)"),
-        "section_solo_pattern": re.compile(r"^(C\d+(?:\.\d+)+)$"),
-        "skip_pages": 2,
-    },
-
-    # ── Leichhardt Part C Section 1 (General Provisions, 2013 amended) ─────
-    {
-        "path":            str(BASE_DIR / "docs/Leichhardt DCP 2013 - 5 -  Part C Place Section 1 - with IWLEP 2022 amendments March 23.pdf"),
-        "source_document": "Leichhardt DCP 2013 Part C Section 1 (General Provisions)",
-        "chunk_prefix":    "lei_dcp_c1",
-        "output":          str(BASE_DIR / "data/chunks_leichhardt_dcp_c1.jsonl"),
-        # "C1.1"  (13pt bold)  →  "SITE AND CONTEXT ANALYSIS"  (13pt bold)
-        # Sub-sections: "C1.1.1"  (11pt bold)  →  title on next bold line
-        "section_pattern":      re.compile(r"^(C\d+(?:\.\d+)+)\s+(.+)"),
-        "section_solo_pattern": re.compile(r"^(C\d+(?:\.\d+)+)$"),
-        "skip_pages": 3,  # skip cover + blank + list of tables
-    },
 ]
+# Former Leichhardt LGA PDFs excluded — R1 General Residential, outside R2 scope.
 
 
 def main():

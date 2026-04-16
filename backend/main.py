@@ -40,27 +40,22 @@ with open(DATA_DIR / "rules_housing_sepp_ch6.json") as f:
     SEPP_RULES = json.load(f)
 print(f"Loaded {len(SEPP_RULES)} SEPP Ch6 rules")
 
-# Inner West Council — 3 former LGAs (manually cleaned, no confidence filter)
+# Inner West Council — R2 Low Density Residential suburbs only
+# (former Leichhardt LGA is zoned R1 General Residential — outside R2 scope)
 with open(DATA_DIR / "rules_inner_west_marrickville.json", encoding="utf-8") as f:
     IW_MARRICKVILLE = json.load(f)
 with open(DATA_DIR / "rules_inner_west_ashfield.json", encoding="utf-8") as f:
     IW_ASHFIELD = json.load(f)
-with open(DATA_DIR / "rules_inner_west_leichhardt.json", encoding="utf-8") as f:
-    IW_LEICHHARDT = json.load(f)
 
-# Inner West LEP 2022 — applies to all 3 former LGAs
+# Inner West LEP 2022 — merged into each R2 LGA rule set
 with open(DATA_DIR / "rules_inner_west_lep.json", encoding="utf-8") as f:
     IW_LEP = json.load(f)
 
-# Merge LEP rules into each LGA's rule set (LEP overrides for same parameter
-# are handled at query time via zone/condition filtering)
 IW_MARRICKVILLE = IW_MARRICKVILLE + IW_LEP
 IW_ASHFIELD     = IW_ASHFIELD     + IW_LEP
-IW_LEICHHARDT   = IW_LEICHHARDT   + IW_LEP
 
-print(f"Loaded Inner West rules — Marrickville: {len(IW_MARRICKVILLE)}, "
-      f"Ashfield: {len(IW_ASHFIELD)}, Leichhardt: {len(IW_LEICHHARDT)} "
-      f"(each includes {len(IW_LEP)} LEP rules)")
+print(f"Loaded Inner West R2 rules — Marrickville: {len(IW_MARRICKVILLE)}, "
+      f"Ashfield: {len(IW_ASHFIELD)} (each includes {len(IW_LEP)} LEP rules)")
 
 # Load DCP chunks (Part C + Part E) — Canada Bay only for now
 def _load_jsonl(path: Path):
@@ -93,11 +88,8 @@ for suburb in [
 for suburb in ["ASHFIELD", "CROYDON", "CROYDON PARK", "HABERFIELD", "DOBROYD POINT"]:
     _IW_SUBURB_MAP[suburb] = (IW_ASHFIELD, "Inner West Council", "ashfield_dcp")
 
-for suburb in [
-    "LEICHHARDT", "ANNANDALE", "LILYFIELD", "GLEBE", "FOREST LODGE",
-    "ROZELLE", "BALMAIN", "BALMAIN EAST", "BIRCHGROVE",
-]:
-    _IW_SUBURB_MAP[suburb] = (IW_LEICHHARDT, "Inner West Council", "leichhardt_dcp")
+# Former Leichhardt LGA suburbs (Annandale, Balmain, Glebe, Rozelle, etc.)
+# are zoned R1 General Residential — outside R2 scope, not routed.
 
 
 def get_rules_for_address(address: str) -> tuple[list, str, str]:
