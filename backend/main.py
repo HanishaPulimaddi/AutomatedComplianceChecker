@@ -251,6 +251,7 @@ def get_envelope(req: EnvelopeRequest):
             r for r in rules
             if r.get("zone") in (zone, "all_residential", "all")
             and r.get("dwelling_type") in ("dwelling_house", "all")
+            and not r.get("superseded_by")
         ]
         envelope = compute_envelope(polygon, envelope_rules, lat, lon)
 
@@ -278,6 +279,7 @@ def get_envelope(req: EnvelopeRequest):
             and r.get("zone") in (zone, "all_residential", "all")
             and r.get("dwelling_type") in ("dwelling_house", "all")
             and r.get("lot_type") in ("single_frontage", "all", "not_specified")
+            and not r.get("superseded_by")
         ]
 
         citations = []

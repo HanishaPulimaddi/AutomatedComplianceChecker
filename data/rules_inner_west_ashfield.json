@@ -1,31 +1,5 @@
 [
   {
-    "rule_id": "iw_dcp_f_009_r1",
-    "parameter": "site_coverage_pct",
-    "zone": "R2",
-    "lga": "Inner West Council",
-    "value": 65,
-    "unit": "pct",
-    "operator": "max",
-    "dwelling_type": "dwelling_house",
-    "storey_applicability": "all_storeys",
-    "lot_type": "all",
-    "conditions": [],
-    "exceptions": [
-      "prevailing pattern within the neighbourhood supports site cover over 65%"
-    ],
-    "related_rules": [],
-    "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS3.2",
-    "source_page": 5,
-    "source_text": "unless a prevailing pattern within the neighbourhood, site cover over 65% of the site is not supported",
-    "source_type": "dcp_extraction",
-    "superseded_by": null,
-    "verified": false,
-    "extracted_by": "claude-sonnet-4-6",
-    "confidence": 0.82
-  },
-  {
     "rule_id": "iw_dcp_f_010_r1",
     "parameter": "max_storeys",
     "zone": "R2",
@@ -44,7 +18,7 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS3.3",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS3.3",
     "source_page": 5,
     "source_text": "appears as 2 storeys consistent with this desired future character",
     "source_type": "dcp_extraction",
@@ -70,7 +44,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS4.4",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS4.4",
     "source_page": 8,
     "source_text": "The minimum side setback is 900mm for the entire length of the building",
     "source_type": "dcp_extraction",
@@ -90,13 +64,16 @@
     "dwelling_type": "dwelling_house",
     "storey_applicability": "all_storeys",
     "lot_type": "all",
-    "conditions": [],
+    "conditions": [
+      "applies for the entire length of the building",
+      "dwelling houses"
+    ],
     "exceptions": [],
     "related_rules": [
       "Building Code of Australia"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS4.3",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS4.3",
     "source_page": 8,
     "source_text": "Council requires a minimum side setback of 900mm for houses",
     "source_type": "dcp_extraction",
@@ -124,7 +101,7 @@
       "Building Code of Australia"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS4.3",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS4.3",
     "source_page": 8,
     "source_text": "a minimum side setback of 450mm for outbuildings including garages and sheds",
     "source_type": "dcp_extraction",
@@ -152,7 +129,7 @@
       "Figure 1"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS3.4",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS3.4",
     "source_page": 6,
     "source_text": "Maximum external wall height of 6 metres measured from the existing ground level (Refer to Figure 1)",
     "source_type": "dcp_extraction",
@@ -179,7 +156,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS6.5",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS6.5",
     "source_page": 9,
     "source_text": "Garages and carports which are accessed off a rear lane are setback a minimum of 1 metre from the rear boundary",
     "source_type": "dcp_extraction",
@@ -206,7 +183,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS4.5",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS4.5",
     "source_page": 8,
     "source_text": "minimum side setback for outbuildings, including garages and sheds, where not located between the main building and side boundary is 450mm",
     "source_type": "dcp_extraction",
@@ -233,7 +210,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS6.3",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS6.3",
     "source_page": 8,
     "source_text": "Garages and carports are setback a minimum of 1 metre from the house's front building line",
     "source_type": "dcp_extraction",
@@ -260,7 +237,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS7.2",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS7.2",
     "source_page": 9,
     "source_text": "The maximum height of a font and side fence forward of the front building line is 1.2m",
     "source_type": "dcp_extraction",
@@ -292,7 +269,7 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.3",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS8.3",
     "source_page": 10,
     "source_text": "601m2 and over 50 percent of site area",
     "source_type": "dcp_extraction",
@@ -324,7 +301,7 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.3",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS8.3",
     "source_page": 10,
     "source_text": "401-500m2 55 percent of site area",
     "source_type": "dcp_extraction",
@@ -356,7 +333,7 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.3",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS8.3",
     "source_page": 10,
     "source_text": "301-400m2 60 percent of site area",
     "source_type": "dcp_extraction",
@@ -388,7 +365,7 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.3",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS8.3",
     "source_page": 10,
     "source_text": "201-300m2 65 percent of site area",
     "source_type": "dcp_extraction",
@@ -416,7 +393,7 @@
     ],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS7.1",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS7.1",
     "source_page": 9,
     "source_text": "The maximum height of rear and a side boundary fence which does not extend forward of the predominant building line is 1.8m",
     "source_type": "dcp_extraction",
@@ -444,7 +421,7 @@
     ],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS7.1",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS7.1",
     "source_page": 9,
     "source_text": "The maximum height of rear and a side boundary fence which does not extend forward of the predominant building line is 1.8m",
     "source_type": "dcp_extraction",
@@ -476,7 +453,7 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.2",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS8.2",
     "source_page": 10,
     "source_text": "601m2 and over 35 percent of site area",
     "source_type": "dcp_extraction",
@@ -508,7 +485,7 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.2",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS8.2",
     "source_page": 10,
     "source_text": "401-500m2 32 percent of site area",
     "source_type": "dcp_extraction",
@@ -540,7 +517,7 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.2",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS8.2",
     "source_page": 10,
     "source_text": "301-400m2 28 percent of site area",
     "source_type": "dcp_extraction",
@@ -572,7 +549,7 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.2",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS8.2",
     "source_page": 10,
     "source_text": "201-300m2 25 percent of site area",
     "source_type": "dcp_extraction",
@@ -580,72 +557,6 @@
     "verified": false,
     "extracted_by": "claude-sonnet-4-6",
     "confidence": 0.95
-  },
-  {
-    "rule_id": "iw_dcp_f_035_r6",
-    "parameter": "private_open_space",
-    "zone": "all_residential",
-    "lga": "Inner West Council",
-    "value": 20,
-    "unit": "m2",
-    "operator": "min",
-    "dwelling_type": "dwelling_house",
-    "storey_applicability": "not_specified",
-    "lot_type": "all",
-    "conditions": [
-      "site area 0-200m2",
-      "landscaped area determined on merit",
-      "applies to Heritage Items and sites within Heritage Conservation Areas",
-      "does not include Haberfield Conservation Area"
-    ],
-    "exceptions": [
-      "Haberfield Conservation Area has specific controls in Inner West LEP 2022"
-    ],
-    "related_rules": [
-      "Inner West LEP 2022"
-    ],
-    "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.2",
-    "source_page": 10,
-    "source_text": "there being a minimum 20m2 courtyard with a minimum 3.5m width",
-    "source_type": "dcp_extraction",
-    "superseded_by": null,
-    "verified": false,
-    "extracted_by": "claude-sonnet-4-6",
-    "confidence": 0.9
-  },
-  {
-    "rule_id": "iw_dcp_f_035_r7",
-    "parameter": "private_open_space_min_dimension",
-    "zone": "all_residential",
-    "lga": "Inner West Council",
-    "value": 3.5,
-    "unit": "m",
-    "operator": "min",
-    "dwelling_type": "dwelling_house",
-    "storey_applicability": "not_specified",
-    "lot_type": "all",
-    "conditions": [
-      "site area 0-200m2",
-      "landscaped area determined on merit",
-      "applies to Heritage Items and sites within Heritage Conservation Areas",
-      "does not include Haberfield Conservation Area"
-    ],
-    "exceptions": [
-      "Haberfield Conservation Area has specific controls in Inner West LEP 2022"
-    ],
-    "related_rules": [
-      "Inner West LEP 2022"
-    ],
-    "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS8.2",
-    "source_page": 10,
-    "source_text": "there being a minimum 20m2 courtyard with a minimum 3.5m width",
-    "source_type": "dcp_extraction",
-    "superseded_by": null,
-    "verified": false,
-    "extracted_by": "claude-sonnet-4-6",
-    "confidence": 0.9
   },
   {
     "rule_id": "iw_dcp_f_039_r1",
@@ -666,7 +577,7 @@
     ],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS10.1",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS10.1",
     "source_page": 11,
     "source_text": "Hard paved areas are minimised, and driveways have a maximum width of 3 metres.",
     "source_type": "dcp_extraction",
@@ -693,7 +604,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS9.1",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS9.1",
     "source_page": 10,
     "source_text": "Principal private open space is: directly accessible from and at the same level as ground floor living area, has a minimum area of 20 m2",
     "source_type": "dcp_extraction",
@@ -720,7 +631,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS9.1",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS9.1",
     "source_page": 10,
     "source_text": "has a minimum area of 20 m2, has a minimum dimension of 3.5 m",
     "source_type": "dcp_extraction",
@@ -748,7 +659,7 @@
       "PC23"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS23.1",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS23.1",
     "source_page": 13,
     "source_text": "external wall height of a laneway development building shall not exceed 3.6m and a maximum ridge roof height of 6m",
     "source_type": "dcp_extraction",
@@ -777,7 +688,7 @@
       "PC23"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS23.1",
+    "source_clause": "Chapter F Part 1 Dwelling Houses DS23.1",
     "source_page": 13,
     "source_text": "external wall height of a laneway development building shall not exceed 3.6m and a maximum ridge roof height of 6m",
     "source_type": "dcp_extraction",
@@ -797,11 +708,14 @@
     "dwelling_type": "secondary_dwelling",
     "storey_applicability": "all_storeys",
     "lot_type": "all",
-    "conditions": [],
+    "conditions": [
+      "applies for the entire length of the building",
+      "dwelling houses"
+    ],
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS4.1",
+    "source_clause": "Chapter F Part 2 Secondary Dwellings DS4.1",
     "source_page": 17,
     "source_text": "Minimum side setback is 0.9 metres",
     "source_type": "dcp_extraction",
@@ -829,7 +743,7 @@
     ],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS4.1",
+    "source_clause": "Chapter F Part 2 Secondary Dwellings DS4.1",
     "source_page": 17,
     "source_text": "a minimum of 1 metre from the rear boundary contained within an attic space",
     "source_type": "dcp_extraction",
@@ -846,7 +760,7 @@
     "value": 1.8,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "all",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "all",
     "conditions": [
@@ -856,7 +770,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS6.3",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS6.3",
     "source_page": 25,
     "source_text": "Solid front fences and walls to 1.8m high are limited to: where the main private open space is in front of the dwelling",
     "source_type": "dcp_extraction",
@@ -868,12 +782,12 @@
   {
     "rule_id": "iw_dcp_f_113_r1",
     "parameter": "max_floor_plate_height",
-    "zone": "R2",
+    "zone": "R3",
     "lga": "Inner West Council",
     "value": 3.4,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "second_storey",
     "lot_type": "not_specified",
     "conditions": [
@@ -884,7 +798,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS14.2",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS14.2",
     "source_page": 28,
     "source_text": "height of the finished floor level of the first floor is not to exceed a height of 3.4 metres measured vertically above any point at natural ground level",
     "source_type": "dcp_extraction",
@@ -896,12 +810,12 @@
   {
     "rule_id": "iw_dcp_f_114_r1",
     "parameter": "height_plane",
-    "zone": "R2",
+    "zone": "R3",
     "lga": "Inner West Council",
     "value": 30,
     "unit": "degrees",
     "operator": "max",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "not_specified",
     "conditions": [
@@ -915,7 +829,7 @@
       "DS14.1"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS14.3",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS14.3",
     "source_page": 28,
     "source_text": "wholly contained within a pitched roof plane which has a roof pitch does not exceed a slope of 30Âº",
     "source_type": "dcp_extraction",
@@ -927,12 +841,12 @@
   {
     "rule_id": "iw_dcp_f_114_r2",
     "parameter": "height_plane",
-    "zone": "R2",
+    "zone": "R3",
     "lga": "Inner West Council",
     "value": 22,
     "unit": "degrees",
     "operator": "min",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "not_specified",
     "conditions": [
@@ -946,7 +860,7 @@
       "DS14.1"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS14.3",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS14.3",
     "source_page": 28,
     "source_text": "roof pitch does not exceed a slope of 30Âº (with the exception of dormer windows) no lower than 22Âº",
     "source_type": "dcp_extraction",
@@ -958,12 +872,12 @@
   {
     "rule_id": "iw_dcp_f_114_r3",
     "parameter": "max_height",
-    "zone": "R2",
+    "zone": "R3",
     "lga": "Inner West Council",
     "value": 12.5,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "not_specified",
     "conditions": [
@@ -976,14 +890,14 @@
       "DS14.1"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS14.3",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS14.3",
     "source_page": 28,
     "source_text": "fully complies with the height limit in the Inner West LEP 2022 which is 12.5 m as measured from natural ground level",
     "source_type": "dcp_extraction",
-    "superseded_by": null,
+    "superseded_by": "IW LEP 2022 cl 4.3 — R2 max height 8.5m (HOB Map)",
     "verified": false,
     "extracted_by": "claude-sonnet-4-6",
-    "confidence": 0.95
+    "confidence": 0.3
   },
   {
     "rule_id": "iw_dcp_f_104_r1",
@@ -993,7 +907,7 @@
     "value": 1.2,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "all",
     "conditions": [
@@ -1005,7 +919,7 @@
       "DS6.2"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS6.2",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS6.2",
     "source_page": 25,
     "source_text": "no more than 1.2m high if solid and forward of the building line",
     "source_type": "dcp_extraction",
@@ -1022,7 +936,7 @@
     "value": 1.8,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "all",
     "conditions": [
@@ -1034,7 +948,7 @@
       "DS6.2"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS6.2",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS6.2",
     "source_page": 25,
     "source_text": "no more than 1.8m if the fence has openings which make it not less than 50% transparent",
     "source_type": "dcp_extraction",
@@ -1046,12 +960,12 @@
   {
     "rule_id": "iw_dcp_f_117_r1",
     "parameter": "building_separation",
-    "zone": "R2",
+    "zone": "R3",
     "lga": "Inner West Council",
     "value": 9,
     "unit": "m",
     "operator": "min",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "single_storey",
     "lot_type": "all",
     "conditions": [
@@ -1064,7 +978,7 @@
       "DS16.1"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS16.1",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS16.1",
     "source_page": 29,
     "source_text": "At ground level, direct facing windows are: placed a minimum of 9 metres apart",
     "source_type": "dcp_extraction",
@@ -1076,12 +990,12 @@
   {
     "rule_id": "iw_dcp_f_117_r2",
     "parameter": "building_separation",
-    "zone": "R2",
+    "zone": "R3",
     "lga": "Inner West Council",
     "value": 6,
     "unit": "m",
     "operator": "min",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "single_storey",
     "lot_type": "all",
     "conditions": [
@@ -1095,7 +1009,7 @@
       "DS16.1"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS16.1",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS16.1",
     "source_page": 29,
     "source_text": "where screening devices or planting are used, 6 metres apart, and if screening is used, the view of the area overlooked must be restricted within 9 metres",
     "source_type": "dcp_extraction",
@@ -1112,7 +1026,7 @@
     "value": 10,
     "unit": "m2",
     "operator": "min",
-    "dwelling_type": "all",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "not_specified",
     "conditions": [
@@ -1122,7 +1036,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS18.4",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS18.4",
     "source_page": 31,
     "source_text": "private outdoor area is to be provided by way of a balcony or deck, with a minimum area of 10mÂ²",
     "source_type": "dcp_extraction",
@@ -1139,7 +1053,7 @@
     "value": 2,
     "unit": "m",
     "operator": "min",
-    "dwelling_type": "all",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "not_specified",
     "conditions": [
@@ -1149,7 +1063,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS18.4",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS18.4",
     "source_page": 31,
     "source_text": "a minimum dimension of 2 metres at any point",
     "source_type": "dcp_extraction",
@@ -1161,12 +1075,12 @@
   {
     "rule_id": "iw_dcp_f_131_r1",
     "parameter": "landscaped_area_pct",
-    "zone": "R2",
+    "zone": "R3",
     "lga": "Inner West Council",
     "value": 35,
     "unit": "pct",
     "operator": "min",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "all",
     "conditions": [
@@ -1177,7 +1091,7 @@
       "Inner West LEP 2022 definition of Landscape Area"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS18.5",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS18.5",
     "source_page": 31,
     "source_text": "minimum amount of landscaped area to be provided on a site shall be 35% of the site area",
     "source_type": "dcp_extraction",
@@ -1189,12 +1103,12 @@
   {
     "rule_id": "iw_dcp_f_131_r2",
     "parameter": "private_open_space_min_dimension",
-    "zone": "R2",
+    "zone": "R3",
     "lga": "Inner West Council",
     "value": 2,
     "unit": "m",
     "operator": "min",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "multi_dwelling",
     "storey_applicability": "not_specified",
     "lot_type": "all",
     "conditions": [
@@ -1206,7 +1120,7 @@
       "Inner West LEP 2022 definition of Landscape Area"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS18.5",
+    "source_clause": "Chapter F Part 4 Multi Dwelling Housing DS18.5",
     "source_page": 31,
     "source_text": "This landscaped area shall be at finished ground level and have a minimum width of 2 metres",
     "source_type": "dcp_extraction",
@@ -1218,12 +1132,12 @@
   {
     "rule_id": "iw_dcp_f_171_r1",
     "parameter": "side_setback_ground",
-    "zone": "all_residential",
+    "zone": "not_residential",
     "lga": "Inner West Council",
     "value": 2,
     "unit": "m",
     "operator": "min",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "not_applicable_residential",
     "storey_applicability": "not_specified",
     "lot_type": "not_specified",
     "conditions": [
@@ -1232,7 +1146,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Acceptable Solutions DS8.2",
+    "source_clause": "Chapter F Part 5 Residential Flat Buildings DS8.2",
     "source_page": 40,
     "source_text": "Development enables the provision of a 2m side setback containing deep soil planting in accordance with the landscape requirements",
     "source_type": "dcp_extraction",
@@ -1244,12 +1158,12 @@
   {
     "rule_id": "iw_dcp_f_181_r1",
     "parameter": "private_open_space_min_dimension",
-    "zone": "all_residential",
+    "zone": "not_residential",
     "lga": "Inner West Council",
     "value": 2,
     "unit": "m",
     "operator": "min",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "not_applicable_residential",
     "storey_applicability": "not_specified",
     "lot_type": "not_specified",
     "conditions": [],
@@ -1258,7 +1172,7 @@
       "Part 5 â€“ Residential Flat Buildings"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Acceptable Solutions DS10.4",
+    "source_clause": "Chapter F Part 5 Residential Flat Buildings DS10.4",
     "source_page": 40,
     "source_text": "The minimum dimension of a landscaped area is 2 metres",
     "source_type": "dcp_extraction",
@@ -1270,12 +1184,12 @@
   {
     "rule_id": "iw_dcp_f_221_r1",
     "parameter": "front_fence_height_solid",
-    "zone": "all",
+    "zone": "not_residential",
     "lga": "Inner West Council",
     "value": 1.2,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "all",
+    "dwelling_type": "not_applicable_residential",
     "storey_applicability": "not_specified",
     "lot_type": "all",
     "conditions": [
@@ -1287,7 +1201,7 @@
       "DS18.2"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Acceptable Solutions DS18.2",
+    "source_clause": "Chapter F Part 5 Residential Flat Buildings DS18.2",
     "source_page": 45,
     "source_text": "no more than 1.2m high if solid and forward of the building line",
     "source_type": "dcp_extraction",
@@ -1299,12 +1213,12 @@
   {
     "rule_id": "iw_dcp_f_221_r2",
     "parameter": "front_fence_height_open",
-    "zone": "all",
+    "zone": "not_residential",
     "lga": "Inner West Council",
     "value": 1.8,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "all",
+    "dwelling_type": "not_applicable_residential",
     "storey_applicability": "not_specified",
     "lot_type": "all",
     "conditions": [
@@ -1315,7 +1229,7 @@
       "DS18.2"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Acceptable Solutions DS18.2",
+    "source_clause": "Chapter F Part 5 Residential Flat Buildings DS18.2",
     "source_page": 45,
     "source_text": "no more than 1.8m if the fence has openings which make it not less than 50% transparent",
     "source_type": "dcp_extraction",
@@ -1327,12 +1241,12 @@
   {
     "rule_id": "iw_dcp_f_222_r1",
     "parameter": "front_fence_height_solid",
-    "zone": "all",
+    "zone": "not_residential",
     "lga": "Inner West Council",
     "value": 1.8,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "dwelling_house",
+    "dwelling_type": "not_applicable_residential",
     "storey_applicability": "not_specified",
     "lot_type": "all",
     "conditions": [
@@ -1344,7 +1258,7 @@
     "exceptions": [],
     "related_rules": [],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Acceptable Solutions DS18.3",
+    "source_clause": "Chapter F Part 5 Residential Flat Buildings DS18.3",
     "source_page": 45,
     "source_text": "Solid front fences and walls to 1.8m high are limited to: where the main private open space is in front of the dwelling",
     "source_type": "dcp_extraction",
@@ -1356,12 +1270,12 @@
   {
     "rule_id": "iw_dcp_f_228_r1",
     "parameter": "max_height",
-    "zone": "all_residential",
+    "zone": "not_residential",
     "lga": "Inner West Council",
     "value": 12.5,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "all",
+    "dwelling_type": "not_applicable_residential",
     "storey_applicability": "all_storeys",
     "lot_type": "not_specified",
     "conditions": [],
@@ -1370,69 +1284,13 @@
       "Inner West LEP 2022"
     ],
     "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Acceptable Solutions DS19.6",
+    "source_clause": "Chapter F Part 5 Residential Flat Buildings DS19.6",
     "source_page": 46,
     "source_text": "A building height of 12.5 metres as specified in Inner West LEP 2022 applies to the site",
     "source_type": "dcp_extraction",
-    "superseded_by": null,
+    "superseded_by": "IW LEP 2022 cl 4.3 — R2 max height 8.5m (HOB Map)",
     "verified": false,
     "extracted_by": "claude-sonnet-4-6",
-    "confidence": 0.95
-  },
-  {
-    "rule_id": "iw_dcp_f_368_r1",
-    "parameter": "front_setback",
-    "zone": "all_residential",
-    "lga": "Inner West Council",
-    "value": 3,
-    "unit": "m",
-    "operator": "min",
-    "dwelling_type": "dwelling_house",
-    "storey_applicability": "all_storeys",
-    "lot_type": "all",
-    "conditions": [
-      "outside of town centre settings"
-    ],
-    "exceptions": [
-      "in town centre settings buildings are built to the front property boundary or maintain continuity of adjoining street setbacks"
-    ],
-    "related_rules": [],
-    "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS2.1",
-    "source_page": 84,
-    "source_text": "outside of town centre settings, buildings have a front setback of between 3 â€“ 6m or buildings are otherwise maintain the continuity",
-    "source_type": "dcp_extraction",
-    "superseded_by": null,
-    "verified": false,
-    "extracted_by": "claude-sonnet-4-6",
-    "confidence": 0.85
-  },
-  {
-    "rule_id": "iw_dcp_f_368_r2",
-    "parameter": "front_setback",
-    "zone": "all_residential",
-    "lga": "Inner West Council",
-    "value": 6,
-    "unit": "m",
-    "operator": "max",
-    "dwelling_type": "dwelling_house",
-    "storey_applicability": "all_storeys",
-    "lot_type": "all",
-    "conditions": [
-      "outside of town centre settings"
-    ],
-    "exceptions": [
-      "in town centre settings buildings are built to the front property boundary or maintain continuity of adjoining street setbacks"
-    ],
-    "related_rules": [],
-    "source_document": "Inner West DCP 2016 Chapter F (Ashfield Dwelling Houses)",
-    "source_clause": "Performance Criteria and Design Solutions DS2.1",
-    "source_page": 84,
-    "source_text": "outside of town centre settings, buildings have a front setback of between 3 â€“ 6m or buildings are otherwise maintain the continuity",
-    "source_type": "dcp_extraction",
-    "superseded_by": null,
-    "verified": false,
-    "extracted_by": "claude-sonnet-4-6",
-    "confidence": 0.85
+    "confidence": 0.3
   }
 ]

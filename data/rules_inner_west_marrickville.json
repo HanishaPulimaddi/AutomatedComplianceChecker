@@ -327,34 +327,6 @@
     "confidence": 0.93
   },
   {
-    "rule_id": "mrk_dcp_4_1_034_r4",
-    "parameter": "min_lot_width",
-    "zone": "all_residential",
-    "lga": "Inner West Council",
-    "value": 8,
-    "unit": "m",
-    "operator": "min",
-    "dwelling_type": "all",
-    "storey_applicability": "not_specified",
-    "lot_type": "all",
-    "conditions": [
-      "threshold for prescriptive side setback table to apply"
-    ],
-    "exceptions": [
-      "lots less than 8 metres â€” side setback at Council's discretion"
-    ],
-    "related_rules": [],
-    "source_document": "Marrickville DCP 2011 Part 4.1",
-    "source_clause": "4.1.6.2 C10",
-    "source_page": 13,
-    "source_text": "Less than 8 metres At Council's discretion ... 8 metres and over One storey 900mm",
-    "source_type": "dcp_extraction",
-    "superseded_by": null,
-    "verified": false,
-    "extracted_by": "claude-sonnet-4-6",
-    "confidence": 0.85
-  },
-  {
     "rule_id": "mrk_dcp_4_1_048_r1",
     "parameter": "max_wall_height",
     "zone": "all_residential",
@@ -362,7 +334,7 @@
     "value": 3.0,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "all",
+    "dwelling_type": "outbuilding",
     "storey_applicability": "all_storeys",
     "lot_type": "not_specified",
     "conditions": [
@@ -389,7 +361,7 @@
     "value": 3.6,
     "unit": "m",
     "operator": "max",
-    "dwelling_type": "all",
+    "dwelling_type": "outbuilding",
     "storey_applicability": "all_storeys",
     "lot_type": "not_specified",
     "conditions": [
@@ -455,7 +427,7 @@
     ],
     "exceptions": [],
     "related_rules": [],
-    "source_document": "Marrickville DCP 2011 Part 4.1",
+    "source_document": "Marrickville DCP 2011 Part 2.11 Fencing",
     "source_clause": "4.1.7.4 C29",
     "source_page": 20,
     "source_text": "Driveways must not be obscured by side boundary fencing higher than 1.2 metres for pedestrian safety",
@@ -726,7 +698,9 @@
     "dwelling_type": "all",
     "storey_applicability": "not_specified",
     "lot_type": "all",
-    "conditions": [],
+    "conditions": [
+      "behind the front building setback"
+    ],
     "exceptions": [],
     "related_rules": [],
     "source_document": "Marrickville DCP 2011 Part 2.11 Fencing",

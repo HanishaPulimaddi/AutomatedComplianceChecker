@@ -18,10 +18,25 @@ Usage:
 import json
 import sys
 import argparse
+import urllib.parse
+import webbrowser
 from pathlib import Path
 from copy import deepcopy
 
 GT_PATH = Path("data/ground_truth_addresses.json")
+
+# Parameters that need per-lot spatial verification on the Planning Portal
+SPATIAL_PARAMS = {
+    "max_height":          "HOB Map",
+    "fsr":                 "FSR Map",
+    "min_lot_size":        "Lot Size Map",
+    "expected_zone":       "Zoning Map",
+}
+
+PORTAL_BASE = "https://www.planningportal.nsw.gov.au/spatialviewer/#/find-a-property/address/"
+
+def portal_url(address: str) -> str:
+    return PORTAL_BASE + urllib.parse.quote(address)
 
 YELLOW = "\033[33m"
 GREEN  = "\033[32m"
@@ -42,7 +57,7 @@ def print_header(address, lga, zone, verified_via, idx, total):
     print("=" * 70)
 
 
-def prompt_rule(param, current_value):
+def prompt_rule(param, current_value, address=""):
     """
     Show a rule and ask user to confirm or override.
     Returns (new_value, note, action)
@@ -50,6 +65,16 @@ def prompt_rule(param, current_value):
     """
     print(f"\n  {c(CYAN, param)}")
     print(f"  Current value: {c(BOLD, current_value)}")
+
+    if param in SPATIAL_PARAMS and address:
+        map_name = SPATIAL_PARAMS[param]
+        url = portal_url(address)
+        print(f"  {c(YELLOW, f'>> Check {map_name} on Planning Portal:')}")
+        print(f"  {c(YELLOW, url)}")
+        open_browser = input(f"  {c(DIM, 'Open in browser? [y/Enter=skip]')} ").strip().lower()
+        if open_browser == "y":
+            webbrowser.open(url)
+
     print(f"  {c(DIM, '[Enter]=confirm  [new value]=override  [n]=N/A  [!note]=add note  [s]=skip address  [q]=quit')}")
 
     raw = input("  > ").strip()
@@ -93,7 +118,7 @@ def verify_address(entry, idx, total):
     address_notes = []
 
     for param, value in checks.items():
-        new_val, extra_note, action = prompt_rule(param, value)
+        new_val, extra_note, action = prompt_rule(param, value, address)
 
         if action == "quit":
             return entry, "quit"
@@ -102,6 +127,10 @@ def verify_address(entry, idx, total):
             return entry, "skip"
 
         if action == "override":
+            # For spatial params, auto-append source if user just typed a number
+            if param in SPATIAL_PARAMS and new_val.replace(".", "").replace("m","").isdigit():
+                map_name = SPATIAL_PARAMS[param]
+                new_val = f"{new_val}m (IW LEP 2022 cl 4.3 — {map_name} verified via Planning Portal)" if param == "max_height" else new_val
             print(c(GREEN, f"  Updated: {param} = {new_val}"))
         elif action == "na":
             print(c(DIM, f"  Marked N/A: {param}"))
@@ -115,6 +144,12 @@ def verify_address(entry, idx, total):
     # Ask for zone confirmation
     print(f"\n  {c(CYAN, 'expected_zone')}")
     print(f"  Current value: {c(BOLD, zone)}")
+    url = portal_url(address)
+    print(f"  {c(YELLOW, '>> Check Zoning Map on Planning Portal:')}")
+    print(f"  {c(YELLOW, url)}")
+    open_browser = input(f"  {c(DIM, 'Open in browser? [y/Enter=skip]')} ").strip().lower()
+    if open_browser == "y":
+        webbrowser.open(url)
     print(f"  {c(DIM, '[Enter]=confirm  [R3/other]=override  [s]=skip  [q]=quit')}")
     raw = input("  > ").strip()
     if raw.lower() == "q":
