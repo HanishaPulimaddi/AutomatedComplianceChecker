@@ -1,6 +1,6 @@
 import json
 import math
-from shapely.geometry import Polygon, Point, LineString, mapping
+from shapely.geometry import Polygon, Point, LineString, mapping, shape
 from shapely.ops import nearest_points
 
 
@@ -148,6 +148,152 @@ def _apply_directional_setbacks(
     return result
 
 
+CONTROL_PARAMETERS = {
+    "fsr",
+    "site_coverage_pct",
+    "max_height",
+    "max_storeys",
+    "height_plane",
+    "min_lot_size",
+    "min_lot_width",
+    "landscaped_area_pct",
+    "landscaped_area_front_pct",
+    "landscaped_area_rear_pct",
+    "private_open_space",
+    "private_open_space_min_dimension",
+    "min_parking_spaces",
+    "max_parking_spaces",
+    "min_parking_per_dwelling",
+    "car_space_length",
+    "car_space_width",
+}
+
+
+def _area_sqm(geometry) -> float:
+    return round(geometry.area * (111000 ** 2), 1)
+
+
+def _control_summary(rule: dict | None) -> dict | None:
+    if not rule:
+        return None
+    return {
+        "value": rule.get("value"),
+        "unit": rule.get("unit"),
+        "operator": rule.get("operator"),
+        "clause": rule.get("source_clause", ""),
+        "source_document": rule.get("source_document", ""),
+        "source_type": rule.get("source_type", ""),
+        "confidence": rule.get("confidence"),
+        "verified": rule.get("verified", False),
+    }
+
+
+def _first_rule_by_parameter(rules: list, parameter: str) -> dict | None:
+    for rule in rules:
+        if rule.get("parameter") == parameter:
+            return rule
+    return None
+
+
+def _control_group(rules: list, parameters: list[str]) -> dict:
+    return {
+        param: _control_summary(_first_rule_by_parameter(rules, param))
+        for param in parameters
+    }
+
+
+def compute_development_controls(
+    lot_polygon: dict,
+    envelope_polygon: dict,
+    rules: list,
+) -> dict:
+    """
+    Return non-spatial controls and derived numbers for an envelope response.
+
+    These values do not change the buildable polygon. They expose controls like
+    FSR, parking, height, landscaped area, and lot-size rules next to the
+    geometry so callers can show the full rule context.
+    """
+    lot = Polygon(lot_polygon["coordinates"][0])
+    envelope = shape(envelope_polygon)
+    lot_area_sqm = _area_sqm(lot)
+    envelope_area_sqm = _area_sqm(envelope)
+    envelope_coverage_pct = (
+        round((envelope_area_sqm / lot_area_sqm) * 100, 1)
+        if lot_area_sqm
+        else None
+    )
+
+    fsr_rule = _first_rule_by_parameter(rules, "fsr")
+    fsr_value = fsr_rule.get("value") if fsr_rule else None
+    max_floor_area_sqm = (
+        round(lot_area_sqm * float(fsr_value), 1)
+        if fsr_value is not None
+        else None
+    )
+
+    present_params = {rule.get("parameter") for rule in rules}
+
+    return {
+        "lot_area_sqm": lot_area_sqm,
+        "buildable_envelope_area_sqm": envelope_area_sqm,
+        "buildable_envelope_coverage_pct": envelope_coverage_pct,
+        "density": {
+            "fsr": _control_summary(fsr_rule),
+            "max_floor_area_sqm": max_floor_area_sqm,
+            "site_coverage_pct": _control_summary(
+                _first_rule_by_parameter(rules, "site_coverage_pct")
+            ),
+        },
+        "height": _control_group(
+            rules,
+            ["max_height", "max_storeys", "height_plane"],
+        ),
+        "parking": _control_group(
+            rules,
+            [
+                "min_parking_spaces",
+                "max_parking_spaces",
+                "min_parking_per_dwelling",
+                "car_space_length",
+                "car_space_width",
+            ],
+        ),
+        "landscaping_open_space": _control_group(
+            rules,
+            [
+                "landscaped_area_pct",
+                "landscaped_area_front_pct",
+                "landscaped_area_rear_pct",
+                "private_open_space",
+                "private_open_space_min_dimension",
+            ],
+        ),
+        "lot_requirements": _control_group(
+            rules,
+            ["min_lot_size", "min_lot_width"],
+        ),
+        "missing_parameters": sorted(CONTROL_PARAMETERS - present_params),
+    }
+
+
+def compute_envelope_result(
+    lot_polygon: dict,
+    rules: list,
+    geocoded_lat: float,
+    geocoded_lon: float,
+) -> dict:
+    envelope = compute_envelope(lot_polygon, rules, geocoded_lat, geocoded_lon)
+    return {
+        "envelope": envelope,
+        "development_controls": compute_development_controls(
+            lot_polygon,
+            envelope,
+            rules,
+        ),
+    }
+
+
 def compute_envelope(lot_polygon: dict, rules: list,
                      geocoded_lat: float, geocoded_lon: float) -> dict:
     """
@@ -269,11 +415,12 @@ if __name__ == "__main__":
         lat     = lot_data["lat"]
         lon     = lot_data["lon"]
 
-        envelope = compute_envelope(polygon, rules, lat, lon)
+        envelope_result = compute_envelope_result(polygon, rules, lat, lon)
 
         results[address] = {
             "lot_polygon":   polygon,
-            "envelope":      envelope,
+            "envelope":      envelope_result["envelope"],
+            "development_controls": envelope_result["development_controls"],
             "rules_applied": rules
         }
         print()

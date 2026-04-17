@@ -1,0 +1,19 @@
+{
+  "ashfield": "rules_r2_ashfield.json",
+  "haberfield": "rules_r2_ashfield.json",
+  "summer_hill": "rules_r2_ashfield.json",
+  "croydon": "rules_r2_ashfield.json",
+  "balmain": "rules_r2_leichhardt.json",
+  "rozelle": "rules_r2_leichhardt.json",
+  "lilyfield": "rules_r2_leichhardt.json",
+  "leichhardt": "rules_r2_leichhardt.json",
+  "annandale": "rules_r2_leichhardt.json",
+  "marrickville": "rules_r2_marrickville.json",
+  "newtown": "rules_r2_marrickville.json",
+  "enmore": "rules_r2_marrickville.json",
+  "dulwich_hill": "rules_r2_marrickville.json",
+  "stanmore": "rules_r2_marrickville.json",
+  "st_peters": "rules_r2_marrickville.json",
+  "sydenham": "rules_r2_marrickville.json",
+  "tempe": "rules_r2_marrickville.json"
+}
