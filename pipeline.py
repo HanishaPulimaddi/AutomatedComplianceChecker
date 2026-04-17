@@ -28,19 +28,19 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+sys.path.insert(0, "D:/python_packages")
+
 import fitz
-from anthropic import Anthropic
 from dotenv import load_dotenv
 
 load_dotenv()
 
 BASE_DIR   = Path(__file__).resolve().parent
 DATA_DIR   = BASE_DIR / "data"
-CHUNKS_DIR = DATA_DIR / "pipeline_chunks"
+CHUNKS_DIR = Path("D:/pipeline_chunks")
 CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
 
-client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-MODEL_EXTRACT = "claude-sonnet-4-6"   # rule extraction: needs reasoning
+MODEL_EXTRACT = "gemini-flash-lite-latest"   # rule extraction via Gemini free tier
 
 # Structure detection uses a free-tier model.
 # Set GROQ_API_KEY in .env for Groq (Llama 3.3, free tier).
@@ -68,18 +68,17 @@ def _init_structure_client():
             print("  Structure detection: Groq (free tier) — llama-3.3-70b-versatile")
             return
         except ImportError:
-            raise RuntimeError("openai package required for Groq: pip install openai")
+            print("  Groq key found but openai package missing — falling back to Gemini")
 
     if gemini_key:
         try:
-            import google.generativeai as genai
-            genai.configure(api_key=gemini_key)
-            _STRUCTURE_CLIENT   = genai.GenerativeModel("gemini-1.5-flash")
+            from google import genai
+            _STRUCTURE_CLIENT   = genai.Client(api_key=gemini_key)
             _STRUCTURE_PROVIDER = "gemini"
             print("  Structure detection: Gemini Flash (free tier)")
             return
         except ImportError:
-            raise RuntimeError("google-generativeai package required: pip install google-generativeai")
+            raise RuntimeError("google-genai package required: pip install --target=D:/python_packages google-genai")
 
     raise RuntimeError(
         "No free model API key found. Set GROQ_API_KEY or GEMINI_API_KEY in .env.\n"
@@ -104,12 +103,74 @@ def _call_structure_model(system_prompt: str, user_content: str) -> str:
         )
         return resp.choices[0].message.content.strip()
 
-    # Gemini
-    resp = _STRUCTURE_CLIENT.generate_content(
-        f"{system_prompt}\n\n{user_content}",
-        generation_config={"max_output_tokens": 1000, "temperature": 0},
-    )
-    return resp.text.strip()
+    # Gemini — try 2.5-flash first, fall back to 2.0-flash-lite on overload
+    for model in ("gemini-flash-lite-latest",):
+        for attempt in range(3):
+            try:
+                resp = _STRUCTURE_CLIENT.models.generate_content(
+                    model=model,
+                    contents=f"{system_prompt}\n\n{user_content}",
+                    config={"max_output_tokens": 4096, "temperature": 0},
+                )
+                return resp.text.strip()
+            except Exception as e:
+                err = str(e)
+                if ("429" in err or "quota" in err.lower()) and attempt < 2:
+                    time.sleep(15 * (attempt + 1))
+                elif "503" in err and attempt < 2:
+                    time.sleep(10 * (attempt + 1))
+                elif "503" in err:
+                    break  # try next model
+                else:
+                    raise
+    raise RuntimeError("All Gemini models unavailable for structure detection")
+
+
+def _call_extraction_model(system_prompt: str, user_content: str) -> str:
+    """Call Gemini for rule extraction with retry on rate-limit errors."""
+    if _STRUCTURE_PROVIDER is None:
+        _init_structure_client()
+
+    for attempt in range(4):
+        try:
+            if _STRUCTURE_PROVIDER == "groq":
+                resp = _STRUCTURE_CLIENT.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user",   "content": user_content},
+                    ],
+                    max_tokens=4000,
+                    temperature=0,
+                )
+                return resp.choices[0].message.content.strip()
+
+            # Gemini — try 2.5-flash first, fall back to 2.0-flash-lite on overload
+            last_err = None
+            for model in ("gemini-flash-lite-latest",):
+                try:
+                    resp = _STRUCTURE_CLIENT.models.generate_content(
+                        model=model,
+                        contents=f"{system_prompt}\n\n{user_content}",
+                        config={"max_output_tokens": 4096, "temperature": 0},
+                    )
+                    return resp.text.strip()
+                except Exception as me:
+                    last_err = me
+                    if "503" in str(me):
+                        continue  # try next model
+                    raise
+            raise last_err
+
+        except Exception as e:
+            if ("429" in str(e) or "quota" in str(e).lower()) and attempt < 3:
+                time.sleep(15 * (attempt + 1))
+            elif "503" in str(e) and attempt < 3:
+                time.sleep(10 * (attempt + 1))
+            else:
+                raise
+
+    raise RuntimeError("Extraction model failed after 4 attempts")
 
 
 # ── LLM document structure detection ────────────────────────────────────────
@@ -224,6 +285,7 @@ def detect_document_structure(pdf_path: str, source_doc: str,
         structure = json.loads(raw)
     except json.JSONDecodeError:
         print(f"  WARN: could not parse structure response, using fallback")
+        print(f"  Raw response (full):\n{raw}")
         structure = _fallback_structure()
 
     # Validate all regex patterns before caching
@@ -624,6 +686,68 @@ def chunk_pdf(pdf_cfg: dict, lga_label: str, structure: dict) -> list[dict]:
     return chunks
 
 
+def _resplit_by_clause(chunks: list[dict], clause_re_str: str | None) -> list[dict]:
+    """
+    Post-process chunks to fix 2-column table layouts (e.g. Ashfield's
+    Performance Criteria | Design Solutions format).
+
+    When PyMuPDF merges both columns into one block, multiple clause labels
+    (DS1.1, DS1.2, C10, C15...) land inside a single chunk.  This function
+    finds those large merged chunks and re-splits them at each clause label
+    boundary so that downstream extraction gets one focused chunk per clause.
+
+    Works for any DCP format — generic on the detected clause_label_regex.
+    """
+    if not clause_re_str:
+        return chunks
+
+    # Extract just the label pattern from the full regex
+    # e.g. "^(DS\d+\.\d+)\s+(.*)" → label_pat matches "DS1.1", "DS3.4" etc.
+    m = re.match(r'^\^?\((.+?)\)', clause_re_str)
+    if not m:
+        return chunks
+    label_pat = re.compile(r'(?<!\w)(' + m.group(1) + r')(?=[\s\.\:])', re.IGNORECASE)
+
+    result = []
+    split_count = 0
+
+    for chunk in chunks:
+        text = chunk.get("text", "")
+        matches = list(label_pat.finditer(text))
+
+        # Only re-split if 2+ clause labels are present in the same chunk
+        if len(matches) < 2:
+            result.append(chunk)
+            continue
+
+        # Prepend any text before the first clause label as a non-split header
+        pre = text[:matches[0].start()].strip()
+        if len(pre) >= 30:
+            pre_chunk = dict(chunk)
+            pre_chunk["text"] = pre
+            pre_chunk["chunk_id"] = f"{chunk['chunk_id']}_pre"
+            pre_chunk["measurements"] = extract_measurements(pre)
+            result.append(pre_chunk)
+
+        for i, match in enumerate(matches):
+            start = match.start()
+            end   = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+            sub   = text[start:end].strip()
+            if len(sub) < 15:
+                continue
+            sub_chunk = dict(chunk)
+            sub_chunk["text"]         = sub
+            sub_chunk["chunk_id"]     = f"{chunk['chunk_id']}_s{i:02d}"
+            sub_chunk["measurements"] = extract_measurements(sub)
+            sub_chunk["clause_type"]  = "control"
+            result.append(sub_chunk)
+            split_count += 1
+
+    if split_count > 0:
+        print(f"  Re-split {split_count} merged clause chunks (2-column layout fix)")
+    return result
+
+
 # ── R2 scope filter ──────────────────────────────────────────────────────────
 
 def in_r2_scope(chunk: dict, r2_scope: dict | None) -> bool:
@@ -632,9 +756,13 @@ def in_r2_scope(chunk: dict, r2_scope: dict | None) -> bool:
     part    = chunk.get("part_context", "")
     include = r2_scope.get("include_parts", [])
     exclude = r2_scope.get("exclude_parts", [])
-    if include and not any(kw.lower() in part.lower() for kw in include):
+    def _part_matches(kw: str, part: str) -> bool:
+        import re as _re
+        return bool(_re.search(r'\b' + _re.escape(kw.lower()) + r'\b', part.lower()))
+
+    if include and not any(_part_matches(kw, part) for kw in include):
         return False
-    if any(kw.lower() in part.lower() for kw in exclude):
+    if any(_part_matches(kw, part) for kw in exclude):
         return False
     return True
 
@@ -708,6 +836,16 @@ confidence    — 0.0–1.0
 Produce ONE rule per tier. Put the threshold in conditions[].
 E.g. site_coverage table: one rule per lot-area row.
 
+## FENCE HEIGHT RULES
+When a fence height clause applies to a front fence without distinguishing solid vs open,
+extract it TWICE — once as front_fence_height_solid and once as front_fence_height_open.
+When a clause explicitly states separate heights for solid and open fences, extract each separately.
+
+## UNIT CONVERSION
+Always express setback and height values in METRES (m), not millimetres.
+Convert: 900mm → value=0.9, unit="m". 1500mm → value=1.5, unit="m".
+Only use unit="mm" if the value is a tolerance or precision spec, not a dimensional control.
+
 ## RETURN FORMAT
 {"rules": [...]}
 Return valid JSON only. No prose. No markdown fences."""
@@ -729,13 +867,76 @@ def _format_chunk_for_batch(chunk: dict, idx: int) -> str:
     )
 
 
+def _normalize_param(p) -> str | None:
+    if not isinstance(p, str):
+        return p
+    return p.strip().lower().replace(" ", "_").replace("-", "_")
+
+
+_UNIT_ALIASES: dict[str, str] = {
+    # metres
+    "metres": "m", "meters": "m", "metre": "m", "meter": "m",
+    # square metres
+    "m²": "m2", "sqm": "m2", "sq m": "m2", "sq.m": "m2",
+    "square metres": "m2", "square meters": "m2", "m^2": "m2",
+    # millimetres
+    "millimetres": "mm", "millimeters": "mm", "millimetre": "mm", "millimeter": "mm",
+    # percent
+    "%": "pct", "percent": "pct", "percentage": "pct",
+    # storeys
+    "storey": "storeys", "stories": "storeys", "story": "storeys", "floors": "storeys",
+    # spaces (parking)
+    "space": "spaces", "car spaces": "spaces", "car space": "spaces",
+}
+
+_OP_ALIASES: dict[str, str] = {
+    "minimum": "min", "min.": "min", "at least": "min", ">=": "min", "≥": "min",
+    "no less than": "min", "not less than": "min",
+    "maximum": "max", "max.": "max", "at most": "max", "<=": "max", "≤": "max",
+    "no more than": "max", "not more than": "max", "not exceed": "max",
+    "equal": "eq", "equal to": "eq", "exactly": "eq", "=": "eq",
+}
+
+
+def _normalize_unit(u) -> str | None:
+    if not isinstance(u, str):
+        return u
+    return _UNIT_ALIASES.get(u.strip().lower(), u.strip().lower())
+
+
+def _normalize_op(o) -> str | None:
+    if not isinstance(o, str):
+        return o
+    return _OP_ALIASES.get(o.strip().lower(), o.strip().lower())
+
+
+# Parameters always expressed in metres — auto-convert mm values
+_METRE_PARAMS = {
+    "front_setback", "side_setback_ground", "side_setback_upper",
+    "rear_setback", "rear_setback_upper", "basement_setback",
+    "outbuilding_setback", "balcony_rear_setback", "building_separation",
+    "max_height", "max_wall_height", "height_plane",
+    "front_fence_height_solid", "front_fence_height_open",
+    "side_fence_height", "rear_fence_height",
+    "private_open_space_min_dimension", "min_lot_width", "min_dwelling_width",
+    "max_driveway_width", "min_parking_space_length", "min_parking_space_width",
+}
+
+
 def _enrich_rule(r: dict, chunk: dict, lga: str, rule_idx: int) -> dict:
+    param = _normalize_param(r.get("parameter"))
+    value = r.get("value")
+    unit  = _normalize_unit(r.get("unit"))
+    # Auto-convert mm → m for dimensional parameters
+    if unit == "mm" and param in _METRE_PARAMS and isinstance(value, (int, float)):
+        value = round(value / 1000, 4)
+        unit  = "m"
     return {
         "rule_id":               f"{chunk['chunk_id']}_r{rule_idx}",
-        "parameter":             r.get("parameter"),
-        "value":                 r.get("value"),
-        "unit":                  r.get("unit"),
-        "operator":              r.get("operator"),
+        "parameter":             param,
+        "value":                 value,
+        "unit":                  unit,
+        "operator":              _normalize_op(r.get("operator")),
         "zone":                  r.get("zone", "R2"),
         "dwelling_type":         r.get("dwelling_type", "all"),
         "storey_applicability":  r.get("storey_applicability", "not_specified"),
@@ -781,22 +982,7 @@ def extract_rules_from_batch(chunks: list[dict], lga: str) -> list[dict]:
         f"{batch_schema}"
     )
 
-    for attempt in range(4):
-        try:
-            resp = client.messages.create(
-                model=MODEL_EXTRACT,
-                max_tokens=4000,
-                system=EXTRACTION_PROMPT,
-                messages=[{"role": "user", "content": user_msg}],
-            )
-            break
-        except Exception as e:
-            if "429" in str(e) and attempt < 3:
-                time.sleep(15 * (attempt + 1))
-            else:
-                raise
-
-    raw = resp.content[0].text.strip()
+    raw = _call_extraction_model(EXTRACTION_PROMPT, user_msg)
     if raw.startswith("```"):
         parts = raw.split("```")
         raw = parts[1][4:] if parts[1].startswith("json") else parts[1]
@@ -874,7 +1060,8 @@ def deduplicate(rules: list[dict]) -> list[dict]:
     for r in rules:
         key = (r.get("parameter"), r.get("value"), r.get("unit"),
                r.get("dwelling_type"), r.get("lot_type"),
-               r.get("zone"), r.get("storey_applicability"))
+               r.get("zone"), r.get("storey_applicability"),
+               r.get("operator"), r.get("source_clause"))
         if key not in seen:
             seen.add(key)
             out.append(r)
@@ -913,6 +1100,7 @@ def run_lga(lga_cfg: dict, dry_run: bool = False, reuse_chunks: bool = False):
         else:
             print(f"\n  Chunking: {pdf_path.name}")
             chunks = chunk_pdf(pdf_cfg, label, structure)
+            chunks = _resplit_by_clause(chunks, structure.get("clause_label_regex"))
             with open(chunk_cache, "w", encoding="utf-8") as f:
                 for c in chunks:
                     f.write(json.dumps(c, ensure_ascii=False) + "\n")
@@ -932,7 +1120,7 @@ def run_lga(lga_cfg: dict, dry_run: bool = False, reuse_chunks: bool = False):
         all_chunks.extend(chunks)
 
     extractable = [c for c in all_chunks
-                   if c.get("clause_type") in ("control", "body", "table")
+                   if c.get("clause_type") in ("control", "body", "table", "heading")
                    and c.get("measurements")]
     print(f"\nTotal: {len(all_chunks)} chunks, "
           f"{len(extractable)} extractable (have numeric values)")
@@ -951,7 +1139,7 @@ def run_lga(lga_cfg: dict, dry_run: bool = False, reuse_chunks: bool = False):
           f"(batch_size={BATCH_SIZE}, 3 parallel workers)...")
     all_rules, errors, done = [], 0, 0
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
+    with ThreadPoolExecutor(max_workers=1) as pool:
         futures = {pool.submit(extract_rules_from_batch, b, lga): b for b in batches}
         for fut in as_completed(futures):
             done += 1

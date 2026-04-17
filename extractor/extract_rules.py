@@ -8,18 +8,38 @@ Usage:
     python extract_rules.py
 """
 
+import sys
+sys.path.insert(0, "D:/python_packages")
+
 import json
 import os
 import time
 from pathlib import Path
-from anthropic import Anthropic
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+from google import genai as _genai
+_gemini = _genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-MODEL = "claude-sonnet-4-5-20250929"
+MODEL = "gemini-2.5-flash"
+
+
+def _call_gemini(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
+    for attempt in range(4):
+        try:
+            resp = _gemini.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=f"{system_prompt}\n\n{user_content}",
+                config={"max_output_tokens": max_tokens, "temperature": 0},
+            )
+            return resp.text.strip()
+        except Exception as e:
+            if ("429" in str(e) or "quota" in str(e).lower()) and attempt < 3:
+                time.sleep(15 * (attempt + 1))
+            else:
+                raise
+    raise RuntimeError("Gemini failed after 4 attempts")
 
 SYSTEM_PROMPT = """You are a planning compliance expert reading an Australian Development Control Plan (DCP).
 
@@ -176,14 +196,7 @@ Clause type: {chunk.get('clause_type', 'unknown')}
 
 Extract all numeric rules from this chunk. Return JSON only."""
 
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=2000,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    raw_text = response.content[0].text.strip()
+    raw_text = _call_gemini(SYSTEM_PROMPT, user_message, max_tokens=2000)
 
     # Strip markdown code fences if Claude added them
     if raw_text.startswith("```"):

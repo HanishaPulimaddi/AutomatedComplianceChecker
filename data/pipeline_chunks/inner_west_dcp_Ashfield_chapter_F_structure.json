@@ -1,0 +1,13 @@
+{
+  "clause_label_regex": "^(C\\d+[a-z]?)\\.?\\s+(.*)",
+  "clause_label_type": "control",
+  "objective_label_regex": "^(O\\d+)\\.?\\s+(.*)",
+  "section_heading_style": "numeric_solo",
+  "section_heading_regex": "^([A-Z]?\\d+(?:\\.\\d+)+)\\s+(.+)",
+  "part_header_regex": "Part\\s+(\\d+)[\\s\\-\\u2013\\u2014]*([A-Za-z][^\\n]*)?",
+  "font_heading_min_size_offset": null,
+  "noise_line_patterns": [],
+  "clause_label_examples": [],
+  "notes": "fallback structure",
+  "source_document": "Inner West DCP 2016 Chapter F"
+}

@@ -17,24 +17,42 @@ Usage:
     python extract_rules_iw.py
 """
 
+import sys
+sys.path.insert(0, "D:/python_packages")
+
 import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from anthropic import Anthropic
 from dotenv import load_dotenv
-
-import sys
 # Force UTF-8 output on Windows so arrow characters don't crash
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 load_dotenv()
 
-client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+from google import genai as _genai
+_gemini = _genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-MODEL = "claude-sonnet-4-6"
+MODEL = "gemini-2.5-flash"
+
+
+def _call_gemini(system_prompt: str, user_content: str, max_tokens: int = 2000) -> str:
+    for attempt in range(4):
+        try:
+            resp = _gemini.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=f"{system_prompt}\n\n{user_content}",
+                config={"max_output_tokens": max_tokens, "temperature": 0},
+            )
+            return resp.text.strip()
+        except Exception as e:
+            if ("429" in str(e) or "quota" in str(e).lower()) and attempt < 3:
+                time.sleep(15 * (attempt + 1))
+            else:
+                raise
+    raise RuntimeError("Gemini failed after 4 attempts")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR  = BASE_DIR / "data"
@@ -174,22 +192,7 @@ Clause type: {chunk.get('clause_type', 'unknown')}
 
 Extract all numeric rules from this chunk. Return JSON only."""
 
-    for attempt in range(4):
-        try:
-            response = client.messages.create(
-                model=MODEL,
-                max_tokens=2000,
-                system=SYSTEM_PROMPT,
-                messages=[{"role": "user", "content": user_message}],
-            )
-            break
-        except Exception as e:
-            if "429" in str(e) and attempt < 3:
-                time.sleep(15 * (attempt + 1))  # 15s, 30s, 45s backoff
-            else:
-                raise
-
-    raw = response.content[0].text.strip()
+    raw = _call_gemini(SYSTEM_PROMPT, user_message, max_tokens=2000)
 
     # Strip markdown fences if present
     if raw.startswith("```"):

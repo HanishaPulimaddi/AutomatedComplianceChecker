@@ -2,15 +2,37 @@
 fix_missing_rules.py — Re-extract specific chunks that failed.
 """
 
+import sys
+sys.path.insert(0, "D:/python_packages")
+
 import json
 import os
-from anthropic import Anthropic
+import time
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-MODEL = "claude-sonnet-4-5-20250929"
+from google import genai as _genai
+_gemini = _genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+
+MODEL = "gemini-2.5-flash"
+
+
+def _call_gemini(system_prompt: str, user_content: str, max_tokens: int = 4000) -> str:
+    for attempt in range(4):
+        try:
+            resp = _gemini.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=f"{system_prompt}\n\n{user_content}",
+                config={"max_output_tokens": max_tokens, "temperature": 0},
+            )
+            return resp.text.strip()
+        except Exception as e:
+            if ("429" in str(e) or "quota" in str(e).lower()) and attempt < 3:
+                time.sleep(15 * (attempt + 1))
+            else:
+                raise
+    raise RuntimeError("Gemini failed after 4 attempts")
 
 SYSTEM_PROMPT = """You are a planning compliance expert. Extract all numeric rules from this DCP text.
 
@@ -73,17 +95,7 @@ def main():
     print(f"Re-extracting: {target_chunk['chunk_id']}")
     print(f"Text preview: {target_chunk['text'][:200]}...")
 
-    response = client.messages.create(
-        model=MODEL,
-        max_tokens=4000,  # Higher limit to avoid truncation
-        system=SYSTEM_PROMPT,
-        messages=[{
-            "role": "user",
-            "content": f"Extract all numeric landscaped area rules:\n\n{target_chunk['text']}"
-        }],
-    )
-
-    raw = response.content[0].text.strip()
+    raw = _call_gemini(SYSTEM_PROMPT, f"Extract all numeric landscaped area rules:\n\n{target_chunk['text']}")
     if raw.startswith("```"):
         parts = raw.split("```")
         if len(parts) >= 2:
