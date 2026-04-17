@@ -15,8 +15,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from nsw_apis import geocode, get_lot_polygon, get_zone
-from compute_envelope import compute_envelope
-from check_lmr import check_lmr_eligibility
+from compute_envelope import compute_envelope_result
+from check_lmr import check_lmr_eligibility, get_lmr_status
+from merge_rules import get_applicable_rules as merge_applicable_rules
 
 app = FastAPI(title="Automated Compliance Checker", version="1.0.0")
 
@@ -76,26 +77,26 @@ print(f"Loaded {len(CHUNKS_PART_C)} Part C chunks, {len(CHUNKS_PART_E)} Part E c
 
 # ── LGA routing ─────────────────────────────────────────────
 
-# Suburb (uppercase) → (rules_list, lga_label, pdf_doc_name)
-_IW_SUBURB_MAP: dict[str, tuple[list, str, str]] = {}
+# Suburb (uppercase) → (rules_list, lga_label, pdf_doc_name, coverage_tier)
+_IW_SUBURB_MAP: dict[str, tuple[list, str, str, str]] = {}
 
 for suburb in [
     "MARRICKVILLE", "TEMPE", "ST PETERS", "SYDENHAM", "DULWICH HILL",
     "HURLSTONE PARK", "PETERSHAM", "STANMORE", "ENMORE", "CAMPERDOWN",
     "NEWTOWN", "LEWISHAM", "SUMMER HILL",
 ]:
-    _IW_SUBURB_MAP[suburb] = (IW_MARRICKVILLE, "Inner West Council", "marrickville_dcp")
+    _IW_SUBURB_MAP[suburb] = (IW_MARRICKVILLE, "Inner West Council", "marrickville_dcp", "beta")
 
 for suburb in ["ASHFIELD", "CROYDON", "CROYDON PARK", "HABERFIELD", "DOBROYD POINT"]:
-    _IW_SUBURB_MAP[suburb] = (IW_ASHFIELD, "Inner West Council", "ashfield_dcp")
+    _IW_SUBURB_MAP[suburb] = (IW_ASHFIELD, "Inner West Council", "ashfield_dcp", "beta")
 
 # Former Leichhardt LGA suburbs (Annandale, Balmain, Glebe, Rozelle, etc.)
 # are zoned R1 General Residential — outside R2 scope, not routed.
 
 
-def get_rules_for_address(address: str) -> tuple[list, str, str]:
+def get_rules_for_address(address: str) -> tuple[list, str, str, str]:
     """
-    Return (rules_list, lga_label, pdf_doc) for the given address string.
+    Return (rules_list, lga_label, pdf_doc, coverage_tier) for the given address.
     Matches suburb tokens against the Inner West suburb map;
     falls back to Canada Bay if no match is found.
     """
@@ -104,7 +105,7 @@ def get_rules_for_address(address: str) -> tuple[list, str, str]:
         # Match as a whole word so "ST PETERS" doesn't match "PETERSHAM"
         if re.search(r'\b' + re.escape(suburb) + r'\b', upper):
             return info
-    return (RULES, "Canada Bay Council", "canada_bay_dcp_part_e")
+    return (RULES, "Canada Bay Council", "canada_bay_dcp_part_e", "production")
 
 
 # ── Request models ──────────────────────────────────────────
@@ -114,6 +115,7 @@ class SiteRequest(BaseModel):
 
 class EnvelopeRequest(BaseModel):
     address: str
+    housing_type: str | None = None   # set to apply SEPP Ch6 LMR overrides
 
 
 # ── Helper: check cache first ────────────────────────────────
@@ -180,18 +182,19 @@ def get_site(req: SiteRequest):
     Checks cache first, fetches from NSW APIs if not cached.
     """
     try:
-        _, lga, _ = get_rules_for_address(req.address)
+        _, lga, _, coverage_tier = get_rules_for_address(req.address)
 
         cached = get_cached_lot(req.address)
         if cached:
             return {
-                "address":  req.address,
-                "lat":      cached["lat"],
-                "lon":      cached["lon"],
-                "zone":     cached["zone"],
-                "polygon":  cached["polygon"],
-                "lga":      lga,
-                "cached":   True
+                "address":       req.address,
+                "lat":           cached["lat"],
+                "lon":           cached["lon"],
+                "zone":          cached["zone"],
+                "polygon":       cached["polygon"],
+                "lga":           lga,
+                "coverage_tier": coverage_tier,
+                "cached":        True
             }
 
         print(f"Fetching from NSW APIs: {req.address}")
@@ -204,13 +207,14 @@ def get_site(req: SiteRequest):
         save_to_cache(req.address, lot_data)
 
         return {
-            "address":  req.address,
-            "lat":      lat,
-            "lon":      lon,
-            "zone":     zone,
-            "polygon":  polygon,
-            "lga":      lga,
-            "cached":   False
+            "address":       req.address,
+            "lat":           lat,
+            "lon":           lon,
+            "zone":          zone,
+            "polygon":       polygon,
+            "lga":           lga,
+            "coverage_tier": coverage_tier,
+            "cached":        False
         }
 
     except ValueError as e:
@@ -226,7 +230,7 @@ def get_envelope(req: EnvelopeRequest):
     computed from the lot polygon and DCP rules for the correct LGA.
     """
     try:
-        rules, lga, pdf_doc = get_rules_for_address(req.address)
+        rules, lga, pdf_doc, coverage_tier = get_rules_for_address(req.address)
 
         cached = get_cached_lot(req.address)
         if cached:
@@ -243,18 +247,44 @@ def get_envelope(req: EnvelopeRequest):
             lot_data = {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon}
             save_to_cache(req.address, lot_data)
 
-        # Pre-filter rules by zone + dwelling_type before passing to
-        # compute_envelope so its first-match logic picks the correct rule
-        # (e.g. 0.9m dwelling_house setback, not 1.5m secondary_dwelling;
-        # 8.5m LEP height, not 6m DS23.1 outbuilding wall height).
+        # ── LMR spatial check ───────────────────────────────────
+        lmr_info = get_lmr_status(lat, lon)
+        lmr_status = lmr_info.get("status")   # "inner" | "outer" | None
+
+        # SEPP overrides only apply when housing_type is explicitly requested.
+        # Without it, /envelope behaves as pure-DCP (backward compatible).
+        effective_lmr_status = lmr_status if req.housing_type else None
+
+        # ── Merge DCP + SEPP rules ───────────────────────────
+        # merge_applicable_rules filters by zone/dwelling_type/lot_type
+        # internally, so pass the full unfiltered LGA rule list.
+        merged = merge_applicable_rules(
+            dcp_rules=rules,
+            sepp_rules=SEPP_RULES,
+            zone=zone,
+            dwelling_type="dwelling_house",
+            lot_type="single_frontage",
+            lmr_status=effective_lmr_status,
+            housing_type=req.housing_type,
+        )
+        effective_rules = merged["applied_rules"]
+        source_summary  = merged["source_summary"]
+
+        # ── Compute envelope ─────────────────────────────────
+        # Pre-filter by zone + dwelling_type before passing to compute_envelope
+        # so its first-match logic picks the right rule (e.g. 0.9m
+        # dwelling_house setback not 1.5m secondary_dwelling setback).
         envelope_rules = [
-            r for r in rules
+            r for r in effective_rules
             if r.get("zone") in (zone, "all_residential", "all")
             and r.get("dwelling_type") in ("dwelling_house", "all")
             and not r.get("superseded_by")
         ]
-        envelope = compute_envelope(polygon, envelope_rules, lat, lon)
+        result             = compute_envelope_result(polygon, envelope_rules, lat, lon)
+        envelope           = result["envelope"]
+        development_controls = result["development_controls"]
 
+        # ── Citations ────────────────────────────────────────
         applied_params = {
             # Setbacks
             "front_setback", "rear_setback", "rear_setback_upper",
@@ -274,7 +304,7 @@ def get_envelope(req: EnvelopeRequest):
         }
 
         applied_rules = [
-            r for r in rules
+            r for r in effective_rules
             if r.get("parameter") in applied_params
             and r.get("zone") in (zone, "all_residential", "all")
             and r.get("dwelling_type") in ("dwelling_house", "all")
@@ -284,26 +314,50 @@ def get_envelope(req: EnvelopeRequest):
 
         citations = []
         for r in applied_rules:
+            src_type = r.get("source_type", "")
+            if "sepp" in src_type:
+                doc = "housing_sepp_2021"
+            else:
+                doc = pdf_doc
             citations.append({
-                "parameter": r["parameter"],
-                "value":     r["value"],
-                "unit":      r["unit"],
-                "operator":  r["operator"],
-                "clause":    r.get("source_clause", ""),
-                "page":      r.get("source_page", 0),
-                "text":      r.get("source_text", ""),
+                "parameter":  r["parameter"],
+                "value":      r["value"],
+                "unit":       r["unit"],
+                "operator":   r["operator"],
+                "clause":     r.get("source_clause", ""),
+                "page":       r.get("source_page", 0),
+                "text":       r.get("source_text", ""),
                 "conditions": r.get("conditions", []),
                 "exceptions": r.get("exceptions", []),
-                "pdf_link":  f"/docs/{pdf_doc}.pdf#page={r.get('source_page', 1)}"
+                "source_type": src_type,
+                "pdf_link":   f"/docs/{doc}.pdf#page={r.get('source_page', 1)}"
             })
 
+        rule_source_breakdown = {
+            **source_summary,
+            "lga":                    lga,
+            "coverage_tier":          coverage_tier,
+            "lmr_status":             lmr_status or "not in LMR area",
+            "effective_lmr_status":   effective_lmr_status or "not applied",
+            "housing_type":           req.housing_type,
+            "sepp_overrides_applied": bool(effective_lmr_status and req.housing_type),
+            "note": (
+                "SEPP overrides require housing_type in the /envelope request"
+                if lmr_status and not req.housing_type else ""
+            ),
+        }
+
         return {
-            "address":       req.address,
-            "lga":           lga,
-            "zone":          zone,
-            "lot_polygon":   polygon,
-            "envelope":      envelope,
-            "rules_applied": citations
+            "address":              req.address,
+            "lga":                  lga,
+            "coverage_tier":        coverage_tier,
+            "zone":                 zone,
+            "lot_polygon":          polygon,
+            "envelope":             envelope,
+            "development_controls": development_controls,
+            "rules_applied":        citations,
+            "lmr_info":             lmr_info,
+            "rule_source_breakdown": rule_source_breakdown,
         }
 
     except ValueError as e:
