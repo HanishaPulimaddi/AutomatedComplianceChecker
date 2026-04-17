@@ -4,10 +4,11 @@
     "address": "24 Calvert Street, Marrickville NSW 2204",
     "expected_zone": "R2",
     "verified_via": "NSW Planning API",
+    "dcp_routing": "Marrickville DCP 2011",
     "check": {
       "side_setback_ground": "0.9m (1-storey, lot >= 8m wide — 4.1.6.2 C10); 0.6m for outbuildings on rear allotment (4.1.7 C18)",
       "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10); 2.5m (3-storey — 4.1.6.2 C10)",
-      "site_coverage_pct": "60% max (<300m²), 55% (300-350m²), 50% (350-450m²), 45% (450-600m²), 40% (>600m²) — 4.1.6.3 C13",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
       "max_storeys": "NOT IN DCP for primary dwelling — controlled by LEP 8.5m height limit only; C11 max_storeys=2 applies only to secondary dwellings",
       "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
       "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
@@ -22,10 +23,11 @@
     "address": "10 Llewellyn Street, Marrickville NSW 2204",
     "expected_zone": "R2",
     "verified_via": "NSW Planning API",
+    "dcp_routing": "Marrickville DCP 2011",
     "check": {
       "side_setback_ground": "0.9m (1-storey, lot >= 8m wide — 4.1.6.2 C10)",
       "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
-      "site_coverage_pct": "55% max (300-350m²) — 4.1.6.3 C13",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
       "max_storeys": "NOT IN DCP for primary dwelling — controlled by LEP 8.5m height limit only",
       "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
       "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
@@ -35,10 +37,267 @@
     "note": "Front/rear setback: BLZ qualitative only. Lot ~344m² — site coverage tier 300–350m². max_storeys not in DCP for primary dwelling."
   },
   {
+    "lga": "Marrickville",
+    "address": "36 Illawarra Road, Marrickville NSW 2204",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey, lot >= 8m wide — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "front_fence_height_solid": "1.2m max (2.11.3 C12)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Front/rear setback: BLZ qualitative only. Zone pending NSW API verification."
+  },
+  {
+    "lga": "Marrickville",
+    "address": "55 Warren Road, Marrickville NSW 2204",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Marrickville",
+    "address": "47 Faversham Street, Marrickville NSW 2204",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Marrickville",
+    "address": "22 Meeks Road, Marrickville NSW 2204",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Stanmore",
+    "address": "12 Salisbury Road, Stanmore NSW 2048",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Stanmore routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Stanmore",
+    "address": "36 Trafalgar Street, Stanmore NSW 2048",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Stanmore routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Petersham",
+    "address": "22 Fisher Street, Petersham NSW 2049",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Petersham routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Petersham",
+    "address": "15 Lackey Street, Petersham NSW 2049",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Petersham routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Summer Hill",
+    "address": "8 Prospect Road, Summer Hill NSW 2130",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Summer Hill routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Newtown",
+    "address": "18 Brown Street, Newtown NSW 2042",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Newtown routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Newtown",
+    "address": "41 Lennox Street, Newtown NSW 2042",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Newtown routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Dulwich Hill",
+    "address": "12 Wardell Road, Dulwich Hill NSW 2203",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Dulwich Hill routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Dulwich Hill",
+    "address": "9 Seaview Street, Dulwich Hill NSW 2203",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Dulwich Hill routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Enmore",
+    "address": "14 Cambridge Street, Enmore NSW 2042",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Enmore routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
+    "lga": "Petersham",
+    "address": "20 Brighton Street, Petersham NSW 2049",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Marrickville DCP 2011",
+    "check": {
+      "side_setback_ground": "0.9m (1-storey — 4.1.6.2 C10)",
+      "side_setback_upper": "1.5m (2-storey — 4.1.6.2 C10)",
+      "site_coverage_pct": "0-300m² on merit; 60% max (>300-350m²); 55% (>350-400m²); 50% (>400-500m²); 45% (>500-700m²); 40% (>700m²) — 4.1.6.3 C13",
+      "max_storeys": "NOT IN DCP for primary dwelling",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2)",
+      "parking_spaces_per_dwelling": "1 space (2.10.5 C1)",
+      "rear_fence_height": "1.8m max (2.11.4.2 C21)"
+    },
+    "note": "Petersham routes to Marrickville DCP 2011. Front/rear setback: BLZ qualitative only."
+  },
+  {
     "lga": "Ashfield",
     "address": "12 Alt Street, Ashfield NSW 2131",
     "expected_zone": "R2",
     "verified_via": "NSW Planning API",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
     "check": {
       "front_setback": "3m min (DS2.1); 6m for corner lots (DS2.1)",
       "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
@@ -61,6 +320,7 @@
     "address": "15 Holden Street, Ashfield NSW 2131",
     "expected_zone": "R2",
     "verified_via": "NSW Planning API",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
     "check": {
       "front_setback": "3m min (DS2.1)",
       "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
@@ -75,5 +335,242 @@
       "fsr": "0.6–1.1 depending on lot area (IW LEP 2022 cl 4.4)"
     },
     "note": "Standard Ashfield R2 dwelling house. DCP Chapter F applies."
+  },
+  {
+    "lga": "Ashfield",
+    "address": "28 Brown Street, Ashfield NSW 2131",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "max_driveway_width": "3m (DS10.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Zone pending NSW API verification."
+  },
+  {
+    "lga": "Ashfield",
+    "address": "14 Orpington Street, Ashfield NSW 2131",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "max_driveway_width": "3m (DS10.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Zone pending NSW API verification."
+  },
+  {
+    "lga": "Ashfield",
+    "address": "7 Moore Street, Ashfield NSW 2131",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "max_driveway_width": "3m (DS10.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Zone pending NSW API verification."
+  },
+  {
+    "lga": "Ashfield",
+    "address": "45 Milton Street, Ashfield NSW 2131",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "max_driveway_width": "3m (DS10.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Zone pending NSW API verification."
+  },
+  {
+    "lga": "Ashfield",
+    "address": "23 Victoria Street, Ashfield NSW 2131",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Zone pending NSW API verification."
+  },
+  {
+    "lga": "Croydon",
+    "address": "18 Wolseley Street, Croydon NSW 2132",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "max_driveway_width": "3m (DS10.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Croydon routes to Ashfield DCP Chapter F. Zone pending NSW API verification."
+  },
+  {
+    "lga": "Croydon",
+    "address": "5 Fitzroy Street, Croydon NSW 2132",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "max_driveway_width": "3m (DS10.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Croydon routes to Ashfield DCP Chapter F. Zone pending NSW API verification."
+  },
+  {
+    "lga": "Croydon",
+    "address": "11 Croydon Avenue, Croydon NSW 2132",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Croydon routes to Ashfield DCP Chapter F. Zone pending NSW API verification."
+  },
+  {
+    "lga": "Haberfield",
+    "address": "12 Hawthorne Parade, Haberfield NSW 2045",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Haberfield routes to Ashfield DCP Chapter F. Zone pending NSW API verification."
+  },
+  {
+    "lga": "Haberfield",
+    "address": "8 Ramsay Street, Haberfield NSW 2045",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Haberfield routes to Ashfield DCP Chapter F. Zone pending NSW API verification."
+  },
+  {
+    "lga": "Croydon Park",
+    "address": "22 Croydon Park Avenue, Croydon Park NSW 2133",
+    "expected_zone": "R2",
+    "verified_via": "pending",
+    "dcp_routing": "Inner West DCP 2016 Chapter F",
+    "check": {
+      "front_setback": "3m min (DS2.1)",
+      "side_setback_ground": "0.9m min (DS4.3/DS4.4)",
+      "rear_setback": "NOT IN DCP for primary dwelling — qualitative only",
+      "max_wall_height": "6m (DS3.4)",
+      "max_storeys": "2 (DS3.3)",
+      "site_coverage_pct": "50-65% tiered by lot area (DS8.3)",
+      "landscaped_area_pct": "25-35% tiered by lot area (DS8.2)",
+      "private_open_space": "20m² min with 3.5m dimension (DS9.1)",
+      "side_fence_height": "1.8m max (DS7.1)",
+      "rear_fence_height": "1.8m max (DS7.1)",
+      "max_height": "8.5m (IW LEP 2022 cl 4.3 — R2 binding)"
+    },
+    "note": "Croydon Park routes to Ashfield DCP Chapter F. Zone pending NSW API verification."
   }
 ]

@@ -31,3 +31,33 @@ address,suburb,lga,zone,front_setback_m,side_setback_1st_m,side_setback_2nd_m,re
 12 Coranto Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 7 Kirrang Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
 14 Wareemba Street Wareemba 2046,Wareemba,City of Canada Bay,R2,4.5,0.9,1.5,6.0,8.5,2,45deg_from_5m,35,0.5,450,no,no,no,no,no,DCP Part E + LEP spatial
+24 Calvert Street Marrickville 2204,Marrickville,Inner West Council,R2,,0.9,1.5,,8.5,,,,,, no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+10 Llewellyn Street Marrickville 2204,Marrickville,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+36 Illawarra Road Marrickville 2204,Marrickville,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+55 Warren Road Marrickville 2204,Marrickville,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+47 Faversham Street Marrickville 2204,Marrickville,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+22 Meeks Road Marrickville 2204,Marrickville,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+12 Salisbury Road Stanmore 2048,Stanmore,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+36 Trafalgar Street Stanmore 2048,Stanmore,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+22 Fisher Street Petersham 2049,Petersham,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+15 Lackey Street Petersham 2049,Petersham,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+8 Prospect Road Summer Hill 2130,Summer Hill,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+18 Brown Street Newtown 2042,Newtown,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+41 Lennox Street Newtown 2042,Newtown,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+12 Wardell Road Dulwich Hill 2203,Dulwich Hill,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+9 Seaview Street Dulwich Hill 2203,Dulwich Hill,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+14 Cambridge Street Enmore 2042,Enmore,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+20 Brighton Street Petersham 2049,Petersham,Inner West Council,R2,,0.9,1.5,,8.5,,,,,,no,no,no,no,no,Marrickville DCP 2011 + IW LEP 2022
+12 Alt Street Ashfield 2131,Ashfield,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,, no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+15 Holden Street Ashfield 2131,Ashfield,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+28 Brown Street Ashfield 2131,Ashfield,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+14 Orpington Street Ashfield 2131,Ashfield,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+7 Moore Street Ashfield 2131,Ashfield,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+45 Milton Street Ashfield 2131,Ashfield,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+23 Victoria Street Ashfield 2131,Ashfield,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+18 Wolseley Street Croydon 2132,Croydon,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+5 Fitzroy Street Croydon 2132,Croydon,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+11 Croydon Avenue Croydon 2132,Croydon,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+12 Hawthorne Parade Haberfield 2045,Haberfield,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+8 Ramsay Street Haberfield 2045,Haberfield,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
+22 Croydon Park Avenue Croydon Park 2133,Croydon Park,Inner West Council,R2,3.0,0.9,,,8.5,2,30deg,,,,no,no,no,no,no,Inner West DCP 2016 Ch F + IW LEP 2022
