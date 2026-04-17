@@ -1,0 +1,85 @@
+[
+  {
+    "lga": "City of Canada Bay",
+    "label": "Canada Bay",
+    "zones": ["R2"],
+    "suburbs": [
+      "Five Dock", "Abbotsford", "Cabarita", "Concord", "Drummoyne",
+      "Russell Lea", "Wareemba", "Canada Bay", "Breakfast Point",
+      "Mortlake", "Rhodes", "Strathfield South", "Concord West"
+    ],
+    "output": "data/rules_r2_canada_bay_pipeline.json",
+    "lep_rules": null,
+    "pdfs": [
+      {
+        "path": "docs/canada_bay_dcp_part_e.pdf",
+        "source_document": "Canada Bay DCP Part E (Single and Semi-Detached Dwellings)",
+        "doc_type": "dcp",
+        "skip_pages": 1,
+        "r2_scope": null
+      },
+      {
+        "path": "docs/canada_bay_dcp_part_c.pdf",
+        "source_document": "Canada Bay DCP Part C (General Controls)",
+        "doc_type": "dcp",
+        "skip_pages": 1,
+        "r2_scope": null
+      }
+    ]
+  },
+  {
+    "lga": "Inner West Council",
+    "label": "Ashfield",
+    "zones": ["R2"],
+    "suburbs": ["Ashfield", "Croydon", "Croydon Park", "Haberfield", "Dobroyd Point"],
+    "output": "data/rules_inner_west_ashfield_pipeline.json",
+    "lep_rules": "data/rules_inner_west_lep.json",
+    "pdfs": [
+      {
+        "path": "docs/inner_west_dcp_Ashfield_chapter_F.pdf",
+        "source_document": "Inner West DCP 2016 Chapter F",
+        "doc_type": "dcp",
+        "skip_pages": 2,
+        "r2_scope": {
+          "include_parts": ["Part 1"],
+          "exclude_parts": ["Part 2", "Part 3", "Part 4", "Part 5", "Part 6"]
+        }
+      }
+    ]
+  },
+  {
+    "lga": "Inner West Council",
+    "label": "Marrickville",
+    "zones": ["R2"],
+    "suburbs": [
+      "Marrickville", "Tempe", "St Peters", "Sydenham", "Dulwich Hill",
+      "Hurlstone Park", "Petersham", "Stanmore", "Enmore", "Camperdown",
+      "Newtown", "Lewisham", "Summer Hill"
+    ],
+    "output": "data/rules_inner_west_marrickville_pipeline.json",
+    "lep_rules": "data/rules_inner_west_lep.json",
+    "pdfs": [
+      {
+        "path": "docs/inner_west_dcp_marrickville_part_4.1.pdf",
+        "source_document": "Marrickville DCP 2011 Part 4.1",
+        "doc_type": "dcp",
+        "skip_pages": 6,
+        "r2_scope": null
+      },
+      {
+        "path": "docs/Marrickville DCP 2011 - 2 10 Parking.pdf",
+        "source_document": "Marrickville DCP 2011 Part 2.10 Parking",
+        "doc_type": "dcp",
+        "skip_pages": 4,
+        "r2_scope": null
+      },
+      {
+        "path": "docs/Marrickville DCP 2011 - 2 11 Fencing (1).pdf",
+        "source_document": "Marrickville DCP 2011 Part 2.11 Fencing",
+        "doc_type": "dcp",
+        "skip_pages": 4,
+        "r2_scope": null
+      }
+    ]
+  }
+]
