@@ -2,8 +2,10 @@
 pipeline.py — Generic DCP/LEP rule extraction pipeline.
 
 Reads pipeline_manifest.json. For each LGA entry:
-  1. Auto-detects clause style from the PDF (C-style, DS-style, E-section, etc.)
-  2. Chunks PDF with full section hierarchy embedded in every chunk
+  1. Calls Claude to detect the document's structure (clause labels, section
+     heading style, part headers) — works on any council's DCP format
+  2. Chunks PDF using detected patterns, embeds full section hierarchy in
+     every chunk so the extractor knows its context
   3. Filters chunks to R2-scoped sections (if r2_scope is set in manifest)
   4. Calls Claude to extract rules with full context (conditions, exceptions, routing)
   5. Validates schema, deduplicates, merges LEP rules
@@ -12,8 +14,8 @@ Reads pipeline_manifest.json. For each LGA entry:
 Usage:
     python pipeline.py                          # run all LGAs in manifest
     python pipeline.py --lga Ashfield           # run one LGA
-    python pipeline.py --lga Ashfield --dry-run # show chunks, no API calls
-    python pipeline.py --lga Ashfield --reuse-chunks  # skip re-chunking
+    python pipeline.py --lga Ashfield --dry-run # chunk + detect only, no extraction
+    python pipeline.py --lga Ashfield --reuse-chunks  # skip re-chunking if cached
 """
 
 import json
@@ -38,55 +40,261 @@ CHUNKS_DIR = DATA_DIR / "pipeline_chunks"
 CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
 
 client = Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
-MODEL  = "claude-sonnet-4-6"
+MODEL_EXTRACT = "claude-sonnet-4-6"   # rule extraction: needs reasoning
+
+# Structure detection uses a free-tier model.
+# Set GROQ_API_KEY in .env for Groq (Llama 3.3, free tier).
+# Set GEMINI_API_KEY in .env for Gemini Flash (free tier).
+# One of these must be set — structure detection does not use Anthropic.
+_STRUCTURE_PROVIDER = None
+_STRUCTURE_CLIENT   = None
 
 if sys.stdout.encoding != "utf-8":
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 
-# ── Clause style auto-detection ─────────────────────────────────────────────
+def _init_structure_client():
+    global _STRUCTURE_PROVIDER, _STRUCTURE_CLIENT
 
-CLAUSE_PATTERNS = {
-    "C_style":  re.compile(r"^C\d+[a-z]?\.?\s"),           # C10. or C10 text
-    "DS_style": re.compile(r"^DS\d+\.\d+\.?\s"),            # DS3.4 text
-    "E_style":  re.compile(r"^E\d+(?:\.\d+)*\s"),           # E2.1 section
-    "cl_style": re.compile(r"^cl(?:ause)?\s+\d+", re.I),   # cl 4.3 / clause 4.3
-    "num_style": re.compile(r"^\d+\.\d+(?:\.\d+)*\s"),     # 4.1.5 text
-    "PC_style": re.compile(r"^PC\d+\.\d+\.?\s"),            # PC2.1 text
-    "AS_style": re.compile(r"^AS\d+\.\d+\.?\s"),            # AS2.1 text
+    groq_key   = os.environ.get("GROQ_API_KEY")
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+
+    if groq_key:
+        try:
+            from openai import OpenAI as GroqClient
+            _STRUCTURE_CLIENT   = GroqClient(api_key=groq_key,
+                                             base_url="https://api.groq.com/openai/v1")
+            _STRUCTURE_PROVIDER = "groq"
+            print("  Structure detection: Groq (free tier) — llama-3.3-70b-versatile")
+            return
+        except ImportError:
+            raise RuntimeError("openai package required for Groq: pip install openai")
+
+    if gemini_key:
+        try:
+            import google.generativeai as genai
+            genai.configure(api_key=gemini_key)
+            _STRUCTURE_CLIENT   = genai.GenerativeModel("gemini-1.5-flash")
+            _STRUCTURE_PROVIDER = "gemini"
+            print("  Structure detection: Gemini Flash (free tier)")
+            return
+        except ImportError:
+            raise RuntimeError("google-generativeai package required: pip install google-generativeai")
+
+    raise RuntimeError(
+        "No free model API key found. Set GROQ_API_KEY or GEMINI_API_KEY in .env.\n"
+        "  Groq free tier: https://console.groq.com\n"
+        "  Gemini free tier: https://aistudio.google.com/app/apikey"
+    )
+
+
+def _call_structure_model(system_prompt: str, user_content: str) -> str:
+    if _STRUCTURE_PROVIDER is None:
+        _init_structure_client()
+
+    if _STRUCTURE_PROVIDER == "groq":
+        resp = _STRUCTURE_CLIENT.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_content},
+            ],
+            max_tokens=1000,
+            temperature=0,
+        )
+        return resp.choices[0].message.content.strip()
+
+    # Gemini
+    resp = _STRUCTURE_CLIENT.generate_content(
+        f"{system_prompt}\n\n{user_content}",
+        generation_config={"max_output_tokens": 1000, "temperature": 0},
+    )
+    return resp.text.strip()
+
+
+# ── LLM document structure detection ────────────────────────────────────────
+
+STRUCTURE_DETECT_PROMPT = """You are analysing an Australian planning document (DCP, LEP, or SEPP) to understand its formatting conventions.
+
+Look at the sample pages provided and identify:
+
+1. **Clause/control labels** — the labels used to number individual rules or controls.
+   Examples from different councils:
+   - Canada Bay / Marrickville: "C10", "C15a", "O5" (objectives)
+   - Inner West Ashfield: "DS3.4", "DS14.2" (Design Solutions)
+   - LEPs: "cl 4.3", "clause 4.4"
+   - Parramatta: "P1", "P2"
+   - Wollongong: "DCP-R1.1"
+   - Some DCPs have NO labels — rules are just numbered paragraphs
+   Could be anything — look at what's actually in the text.
+
+2. **Objective labels** — separate labels for objectives (not controls).
+   Often "O1", "O2" etc. Return null if objectives aren't labelled separately.
+
+3. **Section heading style** — how major sections are titled:
+   - "numeric_inline": number and title on same line, e.g. "4.1.5 Setbacks" or "E2.1 Building Height"
+   - "numeric_solo": number alone on one line, title on the next bold line
+   - "font_size": no numbers — headings are just large/bold prose text like "Building Setbacks"
+   - "mixed": both numbered and prose headings present
+
+4. **Section heading regex** — a Python regex to match section headings.
+   Group 1 = section number, Group 2 = title (or null if font_size style).
+   Leave null if font_size style.
+
+5. **Part header pattern** — text that appears in page running headers to identify
+   which Part/Chapter the page belongs to. E.g. "Part 1" or "Chapter F".
+   Return the regex that would match it. Group 1 = part number, Group 2 = part title.
+
+6. **Noise lines** — recurring boilerplate lines to skip (council name, document title,
+   page number format, etc.)
+
+Return ONLY valid JSON in this exact schema:
+
+{
+  "clause_label_regex": "^(C\\d+[a-z]?)\\.?\\s+(.*)",
+  "clause_label_type": "control",
+  "objective_label_regex": "^(O\\d+)\\.?\\s+(.*)",
+  "section_heading_style": "numeric_inline",
+  "section_heading_regex": "^([A-Z]?\\d+(?:\\.\\d+)+)\\s+(.+)",
+  "part_header_regex": "Part\\s+(\\d+)[\\s\\-\\u2013\\u2014]*([A-Za-z][^\\n]*)?",
+  "font_heading_min_size_offset": null,
+  "noise_line_patterns": ["^CITY OF CANADA BAY$", "^Canada Bay DCP"],
+  "clause_label_examples": ["C10", "C15", "C20a"],
+  "notes": "brief description of the document structure"
 }
 
-def detect_clause_style(doc, sample_pages: int = 20) -> list[str]:
-    """Scan first N pages and return ranked list of clause styles found."""
-    counts = Counter()
-    for page in doc[:sample_pages]:
-        for line in page.get_text("text").split("\n"):
-            line = line.strip()
-            for name, pat in CLAUSE_PATTERNS.items():
-                if pat.match(line):
-                    counts[name] += 1
-    return [style for style, _ in counts.most_common()]
+Rules:
+- All regex values must be valid Python regex strings (escape backslashes)
+- If there are no clause labels, set clause_label_regex to null
+- If section headings are font-size only (no numbers), set section_heading_regex to null
+  and set font_heading_min_size_offset to the font size offset above body text (e.g. 3.0)
+- noise_line_patterns: list of regex strings for boilerplate to skip
+- Return ONLY the JSON object, no prose, no markdown"""
 
 
-# ── Page-header Part detection ───────────────────────────────────────────────
+def detect_document_structure(pdf_path: str, source_doc: str,
+                               skip_pages: int = 0) -> dict:
+    """
+    Send the first ~8 content pages to Claude and ask it to detect the
+    document's clause labeling scheme, section heading style, and noise lines.
+    Returns a structure dict used to configure the chunker.
+    Caches result alongside chunk files.
+    """
+    cache_key  = Path(pdf_path).stem + "_structure.json"
+    cache_path = CHUNKS_DIR / cache_key
+    if cache_path.exists():
+        cached = json.loads(cache_path.read_text(encoding="utf-8"))
+        print(f"  Structure: loaded from cache ({cached.get('notes','')[:60]})")
+        return cached
 
-# Matches "Part 1", "Part 1−", "Part 1 Dwelling Houses" in page headers
-_PART_HEADER = re.compile(
-    r"Part\s+(\d+)[\s\-–—]*([A-Za-z][^\n]*)?", re.IGNORECASE
-)
-# Matches "E2.1", "E3", etc. in Canada Bay Part E
-_E_SECTION_HDR = re.compile(r"^E(\d+(?:\.\d+)*)\s+(.+)", re.IGNORECASE)
-# Matches "C1.1", "C3" in Canada Bay Part C
-_C_SECTION_HDR = re.compile(r"^(C\d+(?:\.\d+)*)\s{2,}(.+)")
+    doc = fitz.open(pdf_path)
+    sample_text = []
+    pages_sampled = 0
+    for page_num, page in enumerate(doc, start=1):
+        if page_num <= skip_pages:
+            continue
+        text = page.get_text("text").strip()
+        if text:
+            sample_text.append(f"=== PAGE {page_num} ===\n{text}")
+            pages_sampled += 1
+        if pages_sampled >= 8:
+            break
+
+    combined = "\n\n".join(sample_text)[:6000]  # ~6k chars is enough to detect structure
+
+    print(f"  Detecting structure (free model, {pages_sampled} sample pages)...")
+    for attempt in range(3):
+        try:
+            raw = _call_structure_model(
+                STRUCTURE_DETECT_PROMPT,
+                f"Document: {source_doc}\n\nSample pages:\n\n{combined}",
+            )
+            break
+        except Exception as e:
+            if "429" in str(e) and attempt < 2:
+                time.sleep(15 * (attempt + 1))
+            else:
+                raise
+    if raw.startswith("```"):
+        parts = raw.split("```")
+        raw = parts[1][4:] if parts[1].startswith("json") else parts[1]
+    raw = raw.strip()
+
+    try:
+        structure = json.loads(raw)
+    except json.JSONDecodeError:
+        print(f"  WARN: could not parse structure response, using fallback")
+        structure = _fallback_structure()
+
+    # Validate all regex patterns before caching
+    structure = _validate_structure(structure)
+    structure["source_document"] = source_doc
+
+    cache_path.write_text(json.dumps(structure, indent=2, ensure_ascii=False),
+                          encoding="utf-8")
+    print(f"  Structure detected: style={structure['section_heading_style']}, "
+          f"clause_ex={structure.get('clause_label_examples',['?'])[:2]}")
+    if structure.get("notes"):
+        print(f"  Notes: {structure['notes'][:80]}")
+    return structure
 
 
-def get_page_part(page_text: str) -> str | None:
-    """Extract the Part name from page header text (e.g. 'Part 1 Dwelling Houses')."""
+def _fallback_structure() -> dict:
+    """Conservative fallback: assumes C-style clauses, numeric sections."""
+    return {
+        "clause_label_regex":       r"^(C\d+[a-z]?)\.?\s+(.*)",
+        "clause_label_type":        "control",
+        "objective_label_regex":    r"^(O\d+)\.?\s+(.*)",
+        "section_heading_style":    "numeric_solo",
+        "section_heading_regex":    r"^([A-Z]?\d+(?:\.\d+)+)\s+(.+)",
+        "part_header_regex":        r"Part\s+(\d+)[\s\-\u2013\u2014]*([A-Za-z][^\n]*)?",
+        "font_heading_min_size_offset": None,
+        "noise_line_patterns":      [],
+        "clause_label_examples":    [],
+        "notes":                    "fallback structure",
+    }
+
+
+def _validate_structure(s: dict) -> dict:
+    """Test-compile all regex fields; replace invalid ones with safe fallbacks."""
+    regex_fields = [
+        "clause_label_regex", "objective_label_regex",
+        "section_heading_regex", "part_header_regex",
+    ]
+    for field in regex_fields:
+        val = s.get(field)
+        if val is None:
+            continue
+        try:
+            re.compile(val)
+        except re.error as e:
+            print(f"  WARN: invalid regex in {field}: {e} — clearing field")
+            s[field] = None
+
+    noise = s.get("noise_line_patterns", [])
+    valid_noise = []
+    for pat in noise:
+        try:
+            re.compile(pat)
+            valid_noise.append(pat)
+        except re.error:
+            pass
+    s["noise_line_patterns"] = valid_noise
+    return s
+
+
+# ── Page-header Part detection ────────────────────────────────────────────────
+
+def get_page_part(page_text: str, part_header_re) -> str | None:
+    """Extract the Part/Chapter name from page header text."""
+    if part_header_re is None:
+        return None
     for line in page_text.split("\n")[:8]:
-        m = _PART_HEADER.search(line.strip())
+        m = part_header_re.search(line.strip())
         if m:
-            num   = m.group(1)
-            title = (m.group(2) or "").strip().rstrip("−–—").strip()
+            num   = m.group(1) if m.lastindex >= 1 else ""
+            title = (m.group(2) if m.lastindex >= 2 else "") or ""
+            title = title.strip().rstrip("\u2013\u2014\u2212-").strip()
             return f"Part {num}" + (f" {title}" if title else "")
     return None
 
@@ -114,80 +322,102 @@ def extract_measurements(text: str) -> list[str]:
     return [m[0] + m[1] for m in EXTRACT_MEAS.findall(text)]
 
 
-SKIP_LINES = {
-    "Controls", "Objectives", "Objective", "Control", "Background",
-    "Performance Criteria", "Design Solution", "Performance Criteria and Design Solutions",
-    "Marrickville Development Control Plan 2011",
-    "Comprehensive Inner West DCP 2016",
-    "Canada Bay DCP - Part C", "Canada Bay DCP - Part E",
-    "CITY OF CANADA BAY",
-    "Chapter F \u2013 Development Category Guidelines",
-    "Low Density Residential Development",
-}
+# ── Table helpers ─────────────────────────────────────────────────────────────
+
+def _is_real_table(rows: list) -> bool:
+    """
+    Return True if PyMuPDF table rows look like a real data table,
+    not a two-column layout artifact.
+    """
+    if not rows or len(rows) < 2:
+        return False
+    max_cols = max(len(r) for r in rows)
+    if max_cols < 2:
+        return False
+    total = sum(len(r) for r in rows)
+    empty = sum(1 for r in rows for cell in r if not (cell or "").strip())
+    if total == 0 or empty / total > 0.6:
+        return False
+    all_text = " ".join((cell or "") for r in rows for cell in r)
+    return bool(re.search(r"\d", all_text))
+
+
+def _rows_to_markdown(rows: list) -> str:
+    """Convert table row list-of-lists to a markdown table string."""
+    if not rows:
+        return ""
+    max_cols = max(len(r) for r in rows)
+    padded = [(list(r) + [""] * (max_cols - len(r))) for r in rows]
+
+    def fmt(row):
+        return "| " + " | ".join((c or "").replace("|", "/").strip() for c in row) + " |"
+
+    sep = "| " + " | ".join(["---"] * max_cols) + " |"
+    return "\n".join([fmt(padded[0]), sep] + [fmt(r) for r in padded[1:]])
 
 
 # ── Core PDF chunker ─────────────────────────────────────────────────────────
 
-def chunk_pdf(pdf_cfg: dict, lga_label: str) -> list[dict]:
+def chunk_pdf(pdf_cfg: dict, lga_label: str, structure: dict) -> list[dict]:
     """
-    Parse one PDF into chunks. Each chunk carries:
-      - section_path:  full routing path, e.g.
-                       "Canada Bay DCP Part E > E4 Setbacks > C10"
-      - part_context:  top-level Part name (from page header), e.g. "Part 1 Dwelling Houses"
-      - section:       sub-section number/heading
-      - clause_type:   control | objective | heading | body
-      - measurements:  list of numeric values found
+    Parse one PDF into chunks using the LLM-detected document structure.
+    Each chunk carries full section hierarchy so extraction has context.
     """
-    path            = pdf_cfg["path"]
-    source_doc      = pdf_cfg["source_document"]
-    skip_pages      = pdf_cfg.get("skip_pages", 0)
+    path       = pdf_cfg["path"]
+    source_doc = pdf_cfg["source_document"]
+    skip_pages = pdf_cfg.get("skip_pages", 0)
 
-    doc          = fitz.open(path)
-    body_size    = get_body_font_size(doc)
-    heading_thr  = body_size + 1.5
+    doc       = fitz.open(path)
+    body_size = get_body_font_size(doc)
+    heading_thr = body_size + 1.5
 
-    # Detect clause style
-    clause_styles = detect_clause_style(doc)
-    primary_style = clause_styles[0] if clause_styles else "C_style"
+    # ── Compile detected patterns ──────────────────────────────────────────
+    def _compile(field):
+        val = structure.get(field)
+        return re.compile(val, re.DOTALL) if val else None
 
-    # Build clause regex for this document's style(s)
-    active_patterns = []
-    for style in clause_styles[:3]:   # use top-3 styles found
-        active_patterns.append((style, CLAUSE_PATTERNS[style]))
+    clause_re  = _compile("clause_label_regex")
+    obj_re     = _compile("objective_label_regex")
+    section_re = _compile("section_heading_regex")
+    part_hdr_re = _compile("part_header_regex")
 
-    # Additional patterns always checked
-    ctrl_solo    = re.compile(r"^(C\d+[a-z]?)\.?\s*$")
-    ctrl_inline  = re.compile(r"^(C\d+[a-z]?)\.?\s+(.+)", re.DOTALL)
-    obj_solo     = re.compile(r"^(O\d+)\.?\s*$")
-    obj_inline   = re.compile(r"^(O\d+)\.?\s+(.+)", re.DOTALL)
-    ds_inline    = re.compile(r"^(DS\d+\.\d+)\.?\s*(.*)", re.DOTALL)
-    subitem_pat  = re.compile(r"^[a-z]\)\s+|^\d+\.\s+|^[ivxIVX]+\.\s+")
-    note_pat     = re.compile(r"^(Note|NB)[\s:]", re.IGNORECASE)
-    # Section heading patterns
-    num_section  = re.compile(r"^([A-Z]?\d+(?:\.\d+)+)\s+(.+)")  # E2.1 Title / 4.1.5 Title
-    num_solo     = re.compile(r"^([A-Z]?\d+(?:\.\d+)+)$")
+    # Font-size heading threshold (for Ashfield-style prose headings)
+    font_offset = structure.get("font_heading_min_size_offset")
+    font_heading_thr = (body_size + font_offset) if font_offset else None
 
-    chunks         = []
-    chunk_counter  = 0
-    current_part   = ""        # from page header: "Part 1 Dwelling Houses"
-    current_sec    = ""        # sub-section: "E4" / "4.1.6"
-    current_title  = ""        # sub-section title
+    # Section heading style
+    sec_style = structure.get("section_heading_style", "numeric_solo")
+
+    # Noise patterns
+    noise_pats = [re.compile(p) for p in structure.get("noise_line_patterns", [])]
+
+    # Always-useful sub-item / note patterns
+    subitem_pat = re.compile(r"^[a-z]\)\s+|^\d+\.\s+|^[ivxIVX]+\.\s+")
+    note_pat    = re.compile(r"^(Note|NB)[\s:]", re.IGNORECASE)
+
+    # Section heading solo: bare number alone on a line (numeric_solo style)
+    # Covers both the detected pattern AND a generic fallback
+    sec_solo_re = re.compile(r"^([A-Z]?\d+(?:\.\d+)+)$")
+
+    chunks        = []
+    chunk_counter = 0
+    current_part  = ""
+    current_sec   = ""
+    current_title = ""
     current_lines: list[str] = []
-    current_page   = 1
-    current_type   = "body"
-    pending_label  = None
-    pending_ltype  = None
+    current_page  = 1
+    current_type  = "body"
+    pending_label = None
+    pending_ltype = None
     pending_secnum = None
 
-    def routing_path(clause: str = "") -> str:
+    def routing_path() -> str:
         parts = [source_doc]
         if current_part:
             parts.append(current_part)
-        if current_sec:
-            sec_label = current_sec + (f" {current_title}" if current_title else "")
-            parts.append(sec_label)
-        if clause:
-            parts.append(clause)
+        if current_sec or current_title:
+            label = current_sec + (f" {current_title}" if current_title else "")
+            parts.append(label.strip())
         return " > ".join(parts)
 
     def flush():
@@ -196,16 +426,16 @@ def chunk_pdf(pdf_cfg: dict, lga_label: str) -> list[dict]:
         if len(text) < 30:
             return
         chunks.append({
-            "chunk_id":       f"{lga_label.lower().replace(' ','_')}_{chunk_counter:04d}",
+            "chunk_id":        f"{lga_label.lower().replace(' ','_')}_{chunk_counter:04d}",
             "source_document": source_doc,
-            "part_context":   current_part,
-            "section":        current_sec,
-            "section_title":  current_title,
-            "section_path":   routing_path(),
-            "clause_type":    current_type,
-            "page":           current_page,
-            "text":           text,
-            "measurements":   extract_measurements(text),
+            "part_context":    current_part,
+            "section":         current_sec,
+            "section_title":   current_title,
+            "section_path":    routing_path(),
+            "clause_type":     current_type,
+            "page":            current_page,
+            "text":            text,
+            "measurements":    extract_measurements(text),
         })
         chunk_counter += 1
 
@@ -214,61 +444,115 @@ def chunk_pdf(pdf_cfg: dict, lga_label: str) -> list[dict]:
             continue
 
         page_text = page.get_text("text")
-        # Update part context from page header
-        part = get_page_part(page_text)
+        part = get_page_part(page_text, part_hdr_re)
         if part:
             current_part = part
+
+        # ── Table extraction (before text blocks) ──────────────────────────
+        table_rects = []
+        try:
+            for t in page.find_tables().tables:
+                rows = t.extract()
+                if _is_real_table(rows):
+                    table_rects.append(fitz.Rect(t.bbox))
+                    md   = _rows_to_markdown(rows)
+                    meas = extract_measurements(md)
+                    if meas:
+                        flush()
+                        chunks.append({
+                            "chunk_id":        f"{lga_label.lower().replace(' ','_')}_{chunk_counter:04d}",
+                            "source_document": source_doc,
+                            "part_context":    current_part,
+                            "section":         current_sec,
+                            "section_title":   current_title,
+                            "section_path":    routing_path(),
+                            "clause_type":     "table",
+                            "page":            page_num,
+                            "text":            md,
+                            "measurements":    meas,
+                        })
+                        chunk_counter += 1
+                        current_lines = []
+        except Exception as _te:
+            pass  # find_tables() unsupported on this page type — continue
 
         blocks = page.get_text("dict")["blocks"]
 
         for block in blocks:
             if block["type"] != 0:
                 continue
+            # Skip text blocks that fall inside a real table (already extracted)
+            if table_rects:
+                block_r = fitz.Rect(block["bbox"])
+                if any(block_r.intersects(tr) for tr in table_rects):
+                    continue
             for line_obj in block["lines"]:
                 line_text = "".join(s["text"] for s in line_obj["spans"]).strip()
                 if not line_text:
                     continue
 
                 max_font = max((s["size"] for s in line_obj["spans"]), default=0)
-                is_bold  = any("Bold" in s.get("font","") or "bold" in s.get("font","")
-                                for s in line_obj["spans"])
+                is_bold  = any("Bold" in s.get("font", "") or "bold" in s.get("font", "")
+                               for s in line_obj["spans"])
                 is_large = max_font > heading_thr
 
-                # Skip noise
-                if line_text in SKIP_LINES:
+                # ── Skip noise ─────────────────────────────────────────────
+                if any(p.search(line_text) for p in noise_pats):
                     continue
-                if re.match(r"^(Version:|Document Set ID:|Page [A-Za-z0-9\-]+\s*$)", line_text):
+                if re.match(r"^(Version:|Document Set ID:)", line_text):
                     continue
                 if re.match(r"^(Figure|Table)\s+[A-Z0-9\-]", line_text):
                     continue
                 if re.match(r"^\d+\s*$", line_text) or re.match(r"^[A-Z]-\d+\s*$", line_text):
                     continue
-                if re.match(r"^page\s+[A-Z]?-?\d+\s*$", line_text, re.IGNORECASE):
+                if re.match(r"^[Pp]age\s+[A-Z]?-?\d+\s*$", line_text):
                     continue
 
-                # ── Section heading: "E2.1 Title" or "4.1.5 Title" on one line ──
-                if (is_large or is_bold) and (m := num_section.match(line_text)):
-                    flush()
-                    current_lines  = []
-                    pending_label  = None
-                    pending_secnum = None
-                    current_sec    = m.group(1)
-                    current_title  = m.group(2).strip()
-                    current_page   = page_num
-                    current_type   = "heading"
-                    continue
+                # ── Font-size-only heading (e.g. Ashfield prose headings) ──
+                if font_heading_thr and is_bold and max_font >= font_heading_thr:
+                    # Only treat as heading if it's NOT a clause label
+                    is_clause = (clause_re and clause_re.match(line_text)) or \
+                                (obj_re and obj_re.match(line_text))
+                    if not is_clause:
+                        flush()
+                        current_lines  = []
+                        pending_label  = None
+                        pending_secnum = None
+                        current_title  = line_text
+                        current_sec    = ""
+                        current_page   = page_num
+                        current_type   = "heading"
+                        continue
 
-                # ── Section heading: bare number, title on next bold line ──
-                if (is_large or is_bold) and (m := num_solo.match(line_text)):
-                    flush()
-                    current_lines  = []
-                    pending_label  = None
-                    pending_secnum = m.group(1)
-                    current_page   = page_num
-                    current_type   = "heading"
-                    continue
+                # ── Numeric section heading on one line: "E2.1 Title" ──────
+                if (is_large or is_bold) and section_re:
+                    m = section_re.match(line_text)
+                    if m:
+                        flush()
+                        current_lines  = []
+                        pending_label  = None
+                        pending_secnum = None
+                        current_sec    = m.group(1)
+                        current_title  = m.group(2).strip() if m.lastindex >= 2 else ""
+                        current_page   = page_num
+                        current_type   = "heading"
+                        continue
 
-                # ── Resolve pending section number ──
+                # ── Numeric section number alone (title on next bold line) ──
+                if (is_large or is_bold) and sec_solo_re.match(line_text):
+                    # Don't confuse clause labels (e.g. DS3.4) with section numbers
+                    is_clause = (clause_re and clause_re.match(line_text)) or \
+                                (obj_re and obj_re.match(line_text))
+                    if not is_clause:
+                        flush()
+                        current_lines  = []
+                        pending_label  = None
+                        pending_secnum = sec_solo_re.match(line_text).group(1)
+                        current_page   = page_num
+                        current_type   = "heading"
+                        continue
+
+                # ── Resolve pending section number ─────────────────────────
                 if pending_secnum:
                     if is_bold or is_large:
                         current_sec    = pending_secnum
@@ -280,78 +564,60 @@ def chunk_pdf(pdf_cfg: dict, lga_label: str) -> list[dict]:
                         current_title  = ""
                         pending_secnum = None
 
-                # ── Font-size-only heading (Ashfield / large bold prose) ──
-                if is_bold and max_font >= (body_size + 3):
-                    flush()
-                    current_lines  = []
-                    pending_label  = None
-                    current_title  = line_text
-                    current_page   = page_num
-                    current_type   = "heading"
-                    continue
+                # ── Clause label ───────────────────────────────────────────
+                if clause_re:
+                    m = clause_re.match(line_text)
+                    if m:
+                        flush()
+                        label = m.group(1)
+                        rest  = m.group(2).strip() if m.lastindex >= 2 else ""
+                        if rest:
+                            current_lines = [line_text]
+                            pending_label = None
+                        else:
+                            current_lines  = []
+                            pending_label  = label
+                            pending_ltype  = "control"
+                        current_type = "control"
+                        current_page = page_num
+                        continue
 
-                # ── DS-style clause (Ashfield DS3.4) ──
-                if m := ds_inline.match(line_text):
-                    flush()
-                    current_lines = [line_text]
-                    pending_label = None
-                    current_type  = "control"
-                    current_page  = page_num
-                    continue
+                # ── Objective label ────────────────────────────────────────
+                if obj_re:
+                    m = obj_re.match(line_text)
+                    if m:
+                        flush()
+                        label = m.group(1)
+                        rest  = m.group(2).strip() if m.lastindex >= 2 else ""
+                        if rest:
+                            current_lines = [line_text]
+                            pending_label = None
+                        else:
+                            current_lines  = []
+                            pending_label  = label
+                            pending_ltype  = "objective"
+                        current_type = "objective"
+                        current_page = page_num
+                        continue
 
-                # ── C-style clause solo: "C10" alone ──
-                if m := ctrl_solo.match(line_text):
-                    flush()
-                    current_lines  = []
-                    pending_label  = m.group(1)
-                    pending_ltype  = "control"
-                    current_page   = page_num
-                    continue
-
-                # ── C-style clause inline: "C10. text..." ──
-                if m := ctrl_inline.match(line_text):
-                    flush()
-                    current_lines = [line_text]
-                    pending_label = None
-                    current_type  = "control"
-                    current_page  = page_num
-                    continue
-
-                # ── O-style objective ──
-                if m := obj_solo.match(line_text):
-                    flush()
-                    current_lines  = []
-                    pending_label  = m.group(1)
-                    pending_ltype  = "objective"
-                    current_page   = page_num
-                    continue
-
-                if m := obj_inline.match(line_text):
-                    flush()
-                    current_lines = [line_text]
-                    pending_label = None
-                    current_type  = "objective"
-                    current_page  = page_num
-                    continue
-
-                # ── Resolve pending clause label ──
+                # ── Resolve pending clause label ───────────────────────────
                 if pending_label:
                     current_lines = [f"{pending_label}. {line_text}"]
                     current_type  = pending_ltype
                     pending_label = None
                     continue
 
-                # ── Sub-items and notes attach to current clause ──
+                # ── Sub-items and notes attach to current chunk ────────────
                 if subitem_pat.match(line_text) or note_pat.match(line_text):
                     current_lines.append(line_text)
                     continue
 
-                # ── Bold sub-heading ──
+                # ── Bold sub-heading (smaller than heading threshold) ──────
                 if is_bold and max_font <= heading_thr:
                     current_lines.append(line_text)
                     continue
 
-                # ── Body text ──
+                # ── Body text ──────────────────────────────────────────────
                 current_lines.append(line_text)
 
     flush()
@@ -361,10 +627,9 @@ def chunk_pdf(pdf_cfg: dict, lga_label: str) -> list[dict]:
 # ── R2 scope filter ──────────────────────────────────────────────────────────
 
 def in_r2_scope(chunk: dict, r2_scope: dict | None) -> bool:
-    """Return True if the chunk should be included for R2 extraction."""
     if r2_scope is None:
         return True
-    part = chunk.get("part_context", "")
+    part    = chunk.get("part_context", "")
     include = r2_scope.get("include_parts", [])
     exclude = r2_scope.get("exclude_parts", [])
     if include and not any(kw.lower() in part.lower() for kw in include):
@@ -374,103 +639,154 @@ def in_r2_scope(chunk: dict, r2_scope: dict | None) -> bool:
     return True
 
 
-# ── Claude extraction ────────────────────────────────────────────────────────
+# ── Claude rule extraction ────────────────────────────────────────────────────
 
-SYSTEM_PROMPT = """You are a planning compliance expert reading Australian Development Control Plans (DCPs), Local Environmental Plans (LEPs), and State Environmental Planning Policies (SEPPs).
+EXTRACTION_PROMPT = """You are a planning compliance expert reading Australian Development Control Plans (DCPs), Local Environmental Plans (LEPs), and State Environmental Planning Policies (SEPPs).
 
-Your job: extract structured numeric planning rules from a single DCP/LEP chunk.
+Extract structured numeric planning rules from the chunk of DCP/LEP text provided.
 
 ## WHAT TO EXTRACT
-Only extract rules with a CLEAR NUMERIC VALUE (metres, %, storeys, ratio, spaces, degrees, m²).
-Do NOT extract qualitative rules (e.g. "consistent with streetscape", "to council's satisfaction").
-Do NOT invent numbers. Do NOT extract rules about neighbouring properties.
-Do NOT extract rules naming a specific street address or heritage item.
+- Only rules with a CLEAR NUMERIC VALUE (metres, %, storeys, ratio, spaces, degrees, m²)
+- Do NOT extract qualitative rules ("consistent with streetscape", "to council's satisfaction")
+- Do NOT invent numbers or extract rules about neighbouring properties
+- Do NOT extract site-specific rules naming a particular address or heritage item
 
-## CLAUSE STYLES
-Documents use different naming conventions — handle all of them:
-- C10, C15a  (Canada Bay / Marrickville Controls)
-- O5, O12    (Objectives — skip, don't extract)
-- DS3.4      (Inner West Ashfield Design Solutions)
-- cl 4.3, clause 4.4  (LEP clauses)
-- E2.1, E4   (Canada Bay Part E section numbers)
-- PC2.1, AS3.1  (Performance Criteria / Acceptable Solutions)
-- Plain numbered: 4.1.6.2
+## CLAUSE LABELS — any format is valid
+The document may use C10, DS3.4, P1, DCP-R1.1, cl 4.3, or any other scheme.
+Use whatever label the document actually uses in source_clause.
 
-## RULE SCHEMA — every field required
+## RULE SCHEMA (all fields required)
 
-- parameter: MUST be one of the allowed list below
-- value: number (not string)
-- unit: "m" | "m2" | "mm" | "pct" | "storeys" | "ratio" | "degrees" | "spaces"
-- operator: "min" | "max" | "eq"
-- zone: "R2" | "R3" | "all_residential" | "all" | "not_specified"
-- dwelling_type: "dwelling_house" | "semi_detached" | "dual_occupancy_attached" |
-  "dual_occupancy_detached" | "secondary_dwelling" | "outbuilding" |
-  "accessory_structure" | "all"
-- storey_applicability: "single_storey" | "second_storey" | "all_storeys" | "not_specified"
-- lot_type: "single_frontage" | "corner_lot" | "internal_lot" | "rear_lot" | "all" | "not_specified"
-- conditions: list of strings — WHEN this rule applies. Be comprehensive:
-  include site area thresholds, heritage, flood, zone qualifiers, setback triggers,
-  parking area type, lot width conditions, table row conditions, etc.
-- exceptions: list of strings — WHEN this rule does NOT apply or may be varied.
-  Copy language directly from the text.
-- related_rules: list of clause references this rule cross-references.
-- source_clause: exact clause label (e.g. "C10", "DS4.3", "cl 4.3")
-- routing_path: full path from document to clause. Use the section_path from the chunk
-  context and append the clause label and page number.
-  Format: "Document Name > Part/Chapter > Section Heading > ClauseLabel p.N"
-- source_text_quote: 15–30 word exact quote containing the numeric value
-- confidence: 0.0–1.0
-  0.9+ = clear value, unambiguous parameter
-  0.7–0.9 = some interpretation needed
-  <0.7 = uncertain
+parameter — one of:
+  front_setback, side_setback_ground, side_setback_upper,
+  rear_setback, rear_setback_upper,
+  max_height, max_storeys, height_plane, max_wall_height,
+  landscaped_area_pct, landscaped_area_front_pct,
+  private_open_space, private_open_space_min_dimension,
+  fsr, site_coverage_pct,
+  min_lot_size, min_lot_width, min_dwelling_width,
+  basement_setback, outbuilding_setback,
+  front_fence_height_solid, front_fence_height_open,
+  side_fence_height, rear_fence_height,
+  parking_spaces_per_dwelling, min_bicycle_spaces,
+  max_driveway_width, min_parking_space_length, min_parking_space_width,
+  balcony_rear_setback, building_separation
 
-## ALLOWED PARAMETERS
-front_setback, side_setback_ground, side_setback_upper,
-rear_setback, rear_setback_upper,
-max_height, max_storeys, height_plane, max_wall_height,
-landscaped_area_pct, landscaped_area_front_pct,
-private_open_space, private_open_space_min_dimension,
-fsr, site_coverage_pct,
-min_lot_size, min_lot_width, min_dwelling_width,
-basement_setback, outbuilding_setback,
-front_fence_height_solid, front_fence_height_open,
-side_fence_height, rear_fence_height,
-parking_spaces_per_dwelling, min_bicycle_spaces,
-max_driveway_width, min_parking_space_length, min_parking_space_width,
-balcony_rear_setback, building_separation
+value         — number (not string)
+unit          — "m" | "m2" | "mm" | "pct" | "storeys" | "ratio" | "degrees" | "spaces"
+operator      — "min" | "max" | "eq"
+zone          — "R2" | "R3" | "all_residential" | "all" | "not_specified"
+dwelling_type — "dwelling_house" | "semi_detached" | "dual_occupancy_attached" |
+                "dual_occupancy_detached" | "secondary_dwelling" | "outbuilding" |
+                "accessory_structure" | "all"
+storey_applicability — "single_storey" | "second_storey" | "all_storeys" | "not_specified"
+lot_type      — "single_frontage" | "corner_lot" | "internal_lot" | "rear_lot" | "all" | "not_specified"
+
+conditions    — list of strings: WHEN this rule applies
+                Be comprehensive: site area thresholds, heritage status, flood overlay,
+                zone qualifiers, lot width conditions, table row conditions, parking area type, etc.
+
+exceptions    — list of strings: WHEN this rule may be varied or does NOT apply
+                Copy language directly from the text.
+
+related_rules — list of clause references this rule cross-references
+
+source_clause — exact clause label as it appears in the document (e.g. "C10", "DS4.3", "P1")
+
+routing_path  — full path from document to this clause:
+                "<source_document> > <part_context> > <section> > <source_clause> p.<page>"
+                Use the section_path provided in the chunk context.
+
+source_text_quote — 15–30 word exact quote containing the numeric value
+
+confidence    — 0.0–1.0
+                0.9+ = clear value, unambiguous parameter
+                0.7–0.9 = some interpretation needed
+                <0.7 = uncertain (return anyway, backend filters by confidence)
 
 ## TIERED / TABLE RULES
-For rules in a table (e.g. site coverage by lot area), produce ONE rule per tier.
-Set conditions[] to capture the threshold (e.g. "lot area 201–300m²").
+Produce ONE rule per tier. Put the threshold in conditions[].
+E.g. site_coverage table: one rule per lot-area row.
 
 ## RETURN FORMAT
 {"rules": [...]}
 Return valid JSON only. No prose. No markdown fences."""
 
 
-def extract_rules_from_chunk(chunk: dict, lga: str) -> list[dict]:
-    user_msg = f"""Document: {chunk['source_document']}
-Section path: {chunk['section_path']}
-Part context: {chunk.get('part_context', 'not specified')}
-Page: {chunk['page']}
-Clause type: {chunk.get('clause_type', 'unknown')}
-Numeric values found: {', '.join(chunk['measurements']) or 'none'}
+BATCH_SIZE = 5   # chunks per API call — reduces calls ~5x vs one-per-chunk
 
---- CHUNK TEXT ---
-{chunk['text']}
---- END CHUNK ---
 
-Extract all numeric planning rules. For routing_path, use:
-  "{chunk['section_path']} > <ClauseLabel> p.{chunk['page']}"
+def _format_chunk_for_batch(chunk: dict, idx: int) -> str:
+    ctype = chunk.get("clause_type", "unknown")
+    type_note = " [MARKDOWN TABLE — extract one rule per data row]" if ctype == "table" else ""
+    return (
+        f"### CHUNK {idx} — {chunk['chunk_id']}\n"
+        f"Section path: {chunk['section_path']}\n"
+        f"Part context: {chunk.get('part_context', 'not specified')}\n"
+        f"Page: {chunk['page']}  |  Clause type: {ctype}{type_note}\n"
+        f"Numeric values: {', '.join(chunk['measurements']) or 'none'}\n"
+        f"Text: {chunk['text']}\n"
+    )
 
-Return JSON only."""
+
+def _enrich_rule(r: dict, chunk: dict, lga: str, rule_idx: int) -> dict:
+    return {
+        "rule_id":               f"{chunk['chunk_id']}_r{rule_idx}",
+        "parameter":             r.get("parameter"),
+        "value":                 r.get("value"),
+        "unit":                  r.get("unit"),
+        "operator":              r.get("operator"),
+        "zone":                  r.get("zone", "R2"),
+        "dwelling_type":         r.get("dwelling_type", "all"),
+        "storey_applicability":  r.get("storey_applicability", "not_specified"),
+        "lot_type":              r.get("lot_type", "not_specified"),
+        "conditions":            r.get("conditions", []),
+        "exceptions":            r.get("exceptions", []),
+        "related_rules":         r.get("related_rules", []),
+        "lga":                   lga,
+        "source_document":       chunk["source_document"],
+        "source_clause":         r.get("source_clause", ""),
+        "source_page":           chunk["page"],
+        "source_text":           r.get("source_text_quote", chunk["text"][:150]),
+        "routing_path":          r.get("routing_path", chunk["section_path"]),
+        "part_context":          chunk.get("part_context", ""),
+        "source_type":           "dcp_extraction",
+        "superseded_by":         None,
+        "confidence":            r.get("confidence", 0.5),
+        "extracted_by":          MODEL_EXTRACT,
+        "verified":              False,
+    }
+
+
+def extract_rules_from_batch(chunks: list[dict], lga: str) -> list[dict]:
+    """
+    Extract rules from up to BATCH_SIZE chunks in a single API call.
+    Response format: {"batches": [{"chunk_id": "...", "rules": [...]}, ...]}
+    """
+    batch_prompt = "\n\n".join(
+        _format_chunk_for_batch(c, i + 1) for i, c in enumerate(chunks)
+    )
+
+    batch_schema = (
+        "Return a JSON object with a 'batches' array — one entry per chunk:\n"
+        '{"batches": [{"chunk_id": "<chunk_id>", "rules": [...]}, ...]}\n'
+        "Use the exact chunk_id shown in each ### CHUNK header.\n"
+        "If a chunk has no numeric rules, return an empty rules array for it.\n"
+        "Return valid JSON only."
+    )
+
+    user_msg = (
+        f"Document: {chunks[0]['source_document']}\n\n"
+        f"{batch_prompt}\n\n"
+        f"{batch_schema}"
+    )
 
     for attempt in range(4):
         try:
             resp = client.messages.create(
-                model=MODEL,
-                max_tokens=2500,
-                system=SYSTEM_PROMPT,
+                model=MODEL_EXTRACT,
+                max_tokens=4000,
+                system=EXTRACTION_PROMPT,
                 messages=[{"role": "user", "content": user_msg}],
             )
             break
@@ -486,45 +802,34 @@ Return JSON only."""
         raw = parts[1][4:] if parts[1].startswith("json") else parts[1]
     raw = raw.strip()
 
+    # Build chunk_id → chunk lookup
+    chunk_map = {c["chunk_id"]: c for c in chunks}
+
     try:
-        parsed = json.loads(raw)
-        rules  = parsed.get("rules", [])
+        parsed  = json.loads(raw)
+        batches = parsed.get("batches", [])
     except json.JSONDecodeError as e:
-        print(f"  WARN JSON error {chunk['chunk_id']}: {e} — raw: {raw[:120]}")
+        ids = [c["chunk_id"] for c in chunks]
+        print(f"  WARN batch JSON error ({ids}): {e} — {raw[:80]}")
         return []
 
-    enriched = []
-    for i, r in enumerate(rules):
-        enriched.append({
-            "rule_id":               f"{chunk['chunk_id']}_r{i+1}",
-            "parameter":             r.get("parameter"),
-            "value":                 r.get("value"),
-            "unit":                  r.get("unit"),
-            "operator":              r.get("operator"),
-            "zone":                  r.get("zone", "R2"),
-            "dwelling_type":         r.get("dwelling_type", "all"),
-            "storey_applicability":  r.get("storey_applicability", "not_specified"),
-            "lot_type":              r.get("lot_type", "not_specified"),
-            "conditions":            r.get("conditions", []),
-            "exceptions":            r.get("exceptions", []),
-            "related_rules":         r.get("related_rules", []),
-            "lga":                   lga,
-            "source_document":       chunk["source_document"],
-            "source_clause":         r.get("source_clause", ""),
-            "source_page":           chunk["page"],
-            "source_text":           r.get("source_text_quote", chunk["text"][:150]),
-            "routing_path":          r.get("routing_path", chunk["section_path"]),
-            "part_context":          chunk.get("part_context", ""),
-            "source_type":           "dcp_extraction",
-            "superseded_by":         None,
-            "confidence":            r.get("confidence", 0.5),
-            "extracted_by":          MODEL,
-            "verified":              False,
-        })
-    return enriched
+    all_rules = []
+    for entry in batches:
+        cid   = entry.get("chunk_id", "")
+        chunk = chunk_map.get(cid)
+        if chunk is None:
+            # Try fuzzy match — model sometimes truncates chunk_id
+            chunk = next((c for c in chunks if cid in c["chunk_id"] or c["chunk_id"] in cid), None)
+        if chunk is None:
+            print(f"  WARN: unmatched chunk_id '{cid}' in batch response")
+            continue
+        for i, r in enumerate(entry.get("rules", []), start=1):
+            all_rules.append(_enrich_rule(r, chunk, lga, i))
+
+    return all_rules
 
 
-# ── Validation ───────────────────────────────────────────────────────────────
+# ── Validation & dedup ────────────────────────────────────────────────────────
 
 VALID_PARAMS = {
     "front_setback", "side_setback_ground", "side_setback_upper",
@@ -550,26 +855,26 @@ VALID_DWT   = {
 
 
 def validate(rule: dict) -> list[str]:
-    warns = []
+    w = []
     if rule.get("parameter") not in VALID_PARAMS:
-        warns.append(f"unknown parameter: {rule.get('parameter')}")
+        w.append(f"unknown parameter: {rule.get('parameter')}")
     if rule.get("unit") not in VALID_UNITS:
-        warns.append(f"unknown unit: {rule.get('unit')}")
+        w.append(f"unknown unit: {rule.get('unit')}")
     if rule.get("operator") not in VALID_OPS:
-        warns.append(f"unknown operator: {rule.get('operator')}")
+        w.append(f"unknown operator: {rule.get('operator')}")
     if rule.get("dwelling_type") not in VALID_DWT:
-        warns.append(f"unknown dwelling_type: {rule.get('dwelling_type')}")
+        w.append(f"unknown dwelling_type: {rule.get('dwelling_type')}")
     if not isinstance(rule.get("value"), (int, float)):
-        warns.append(f"value not a number: {rule.get('value')}")
-    return warns
+        w.append(f"value not a number: {rule.get('value')}")
+    return w
 
 
 def deduplicate(rules: list[dict]) -> list[dict]:
     seen, out = set(), []
     for r in rules:
         key = (r.get("parameter"), r.get("value"), r.get("unit"),
-               r.get("dwelling_type"), r.get("lot_type"), r.get("zone"),
-               r.get("storey_applicability"))
+               r.get("dwelling_type"), r.get("lot_type"),
+               r.get("zone"), r.get("storey_applicability"))
         if key not in seen:
             seen.add(key)
             out.append(r)
@@ -588,87 +893,90 @@ def run_lga(lga_cfg: dict, dry_run: bool = False, reuse_chunks: bool = False):
     print(f"Output: {output.name}")
     print("="*65)
 
-    # ── Step 1: chunk all PDFs ────────────────────────────────────────
     all_chunks = []
+
     for pdf_cfg in lga_cfg["pdfs"]:
-        pdf_path = BASE_DIR / pdf_cfg["path"]
+        pdf_path    = BASE_DIR / pdf_cfg["path"]
         chunk_cache = CHUNKS_DIR / f"{label.lower().replace(' ','_')}_{pdf_path.stem}.jsonl"
 
+        # ── Step 1: detect document structure ──────────────────────────
+        structure = detect_document_structure(
+            str(pdf_path),
+            pdf_cfg["source_document"],
+            pdf_cfg.get("skip_pages", 0),
+        )
+
+        # ── Step 2: chunk PDF ───────────────────────────────────────────
         if reuse_chunks and chunk_cache.exists():
             chunks = [json.loads(l) for l in open(chunk_cache, encoding="utf-8") if l.strip()]
-            print(f"\nLoaded {len(chunks)} cached chunks from {chunk_cache.name}")
+            print(f"  Loaded {len(chunks)} cached chunks — {pdf_path.name}")
         else:
-            print(f"\nChunking: {pdf_path.name}")
-            chunks = chunk_pdf(pdf_cfg, label)
+            print(f"\n  Chunking: {pdf_path.name}")
+            chunks = chunk_pdf(pdf_cfg, label, structure)
             with open(chunk_cache, "w", encoding="utf-8") as f:
                 for c in chunks:
                     f.write(json.dumps(c, ensure_ascii=False) + "\n")
-            print(f"  → {len(chunks)} chunks saved to {chunk_cache.name}")
+            print(f"  {len(chunks)} chunks → {chunk_cache.name}")
 
-        # R2 scope filtering
+        # ── Step 3: R2 scope filter ─────────────────────────────────────
         r2_scope = pdf_cfg.get("r2_scope")
-        before = len(chunks)
-        chunks = [c for c in chunks if in_r2_scope(c, r2_scope)]
+        before   = len(chunks)
+        chunks   = [c for c in chunks if in_r2_scope(c, r2_scope)]
         if r2_scope and before != len(chunks):
-            print(f"  R2 scope filter: {before} → {len(chunks)} chunks")
+            print(f"  R2 scope: {before} → {len(chunks)} chunks")
 
-        # Show part distribution
-        parts = Counter(c.get("part_context","—") for c in chunks)
+        parts = Counter(c.get("part_context", "—") for c in chunks)
         for part, n in parts.most_common(6):
-            print(f"    {n:3d} chunks — {part}")
+            print(f"    {n:3d}  {part or '(no part detected)'}")
 
         all_chunks.extend(chunks)
 
-    # Only extract from chunks with numeric values
     extractable = [c for c in all_chunks
-                   if c.get("clause_type") in ("control", "body")
+                   if c.get("clause_type") in ("control", "body", "table")
                    and c.get("measurements")]
-    skipped = len(all_chunks) - len(extractable)
-    print(f"\nTotal: {len(all_chunks)} chunks, {len(extractable)} with measurements "
-          f"({skipped} skipped — no numbers)")
+    print(f"\nTotal: {len(all_chunks)} chunks, "
+          f"{len(extractable)} extractable (have numeric values)")
 
     if dry_run:
-        print("\n[DRY RUN] Sample extractable chunks:")
-        for c in extractable[:5]:
+        print("\n[DRY RUN] Sample chunks with measurements:")
+        for c in extractable[:6]:
             print(f"  {c['chunk_id']}  path={c['section_path']}")
             print(f"    meas={c['measurements']}  text={c['text'][:80]}")
         return []
 
-    # ── Step 2: extract rules ─────────────────────────────────────────
-    print(f"\nExtracting rules from {len(extractable)} chunks (parallel, 3 workers)...")
-    all_rules = []
-    errors    = 0
-    done      = 0
-
-    def _call(chunk):
-        return chunk, extract_rules_from_chunk(chunk, lga)
+    # ── Step 4: extract rules (batched — BATCH_SIZE chunks per API call) ───
+    batches     = [extractable[i:i+BATCH_SIZE] for i in range(0, len(extractable), BATCH_SIZE)]
+    n_calls     = len(batches)
+    print(f"\nExtracting from {len(extractable)} chunks in {n_calls} batched calls "
+          f"(batch_size={BATCH_SIZE}, 3 parallel workers)...")
+    all_rules, errors, done = [], 0, 0
 
     with ThreadPoolExecutor(max_workers=3) as pool:
-        futures = {pool.submit(_call, c): c for c in extractable}
+        futures = {pool.submit(extract_rules_from_batch, b, lga): b for b in batches}
         for fut in as_completed(futures):
             done += 1
+            batch = futures[fut]
             try:
-                chunk, rules = fut.result()
+                rules = fut.result()
                 all_rules.extend(rules)
-                summary = ", ".join(f"{r['parameter']}={r['value']}{r['unit']}" for r in rules) \
-                          if rules else "0 rules"
-                print(f"  [{done:3d}/{len(extractable)}] {chunk['chunk_id']}  {summary}",
-                      flush=True)
+                ids  = [c["chunk_id"] for c in batch]
+                summ = f"{len(rules)} rules from {len(batch)} chunks"
+                print(f"  [{done:3d}/{n_calls}] {ids[0]}…  {summ}", flush=True)
             except Exception as e:
                 errors += 1
-                print(f"  ERROR {futures[fut]['chunk_id']}: {e}", flush=True)
+                print(f"  ERROR batch {done}: {e}", flush=True)
 
-    print(f"\nRaw rules: {len(all_rules)}, errors: {errors}")
+    print(f"\nRaw: {len(all_rules)}, errors: {errors}")
 
-    # ── Step 3: dedup + validate ──────────────────────────────────────
+    # ── Step 5: dedup + validate ────────────────────────────────────────
     unique = deduplicate(all_rules)
     print(f"After dedup: {len(unique)}")
 
     valid, flagged = [], []
     for r in unique:
-        warns = validate(r)
-        if warns:
-            r["validation_warnings"] = warns
+        w = validate(r)
+        if w:
+            r["validation_warnings"] = w
             flagged.append(r)
         else:
             valid.append(r)
@@ -676,21 +984,20 @@ def run_lga(lga_cfg: dict, dry_run: bool = False, reuse_chunks: bool = False):
     for r in flagged[:5]:
         print(f"  FLAG {r['rule_id']}: {r.get('validation_warnings')}")
 
-    # ── Step 4: merge LEP rules ───────────────────────────────────────
-    lep_path = lga_cfg.get("lep_rules")
+    # ── Step 6: prepend LEP rules ───────────────────────────────────────
+    lep_path  = lga_cfg.get("lep_rules")
     lep_rules = []
     if lep_path and (BASE_DIR / lep_path).exists():
         lep_rules = json.loads((BASE_DIR / lep_path).read_text(encoding="utf-8"))
-        print(f"Merging {len(lep_rules)} LEP rules from {lep_path}")
+        print(f"Prepending {len(lep_rules)} LEP rules")
 
     all_out = lep_rules + valid + flagged
 
-    # ── Step 5: write output ──────────────────────────────────────────
+    # ── Step 7: write ───────────────────────────────────────────────────
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(all_out, indent=2, ensure_ascii=False), encoding="utf-8")
     print(f"\nWrote {len(all_out)} rules → {output}")
 
-    # Parameter summary
     by_param = {}
     for r in valid:
         by_param.setdefault(r["parameter"], []).append(r)
@@ -698,34 +1005,33 @@ def run_lga(lga_cfg: dict, dry_run: bool = False, reuse_chunks: bool = False):
     for p in sorted(by_param):
         rs = by_param[p]
         vals = ", ".join(f"{r['value']}{r['unit']}" for r in rs[:4])
-        print(f"  {p}: {len(rs)} rule(s) — {vals}{'...' if len(rs)>4 else ''}")
+        print(f"  {p}: {len(rs)} — {vals}{'...' if len(rs)>4 else ''}")
 
     return all_out
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--lga",          default="",    help="Run only this LGA label")
-    parser.add_argument("--dry-run",      action="store_true", help="Chunk only, no API calls")
-    parser.add_argument("--reuse-chunks", action="store_true", help="Skip re-chunking if cache exists")
+    parser.add_argument("--lga",          default="")
+    parser.add_argument("--dry-run",      action="store_true")
+    parser.add_argument("--reuse-chunks", action="store_true")
     parser.add_argument("--manifest",     default="pipeline_manifest.json")
     args = parser.parse_args()
 
     manifest = json.loads((BASE_DIR / args.manifest).read_text(encoding="utf-8"))
-
-    targets = manifest
+    targets  = manifest
     if args.lga:
         targets = [e for e in manifest if e["label"].lower() == args.lga.lower()]
         if not targets:
-            print(f"LGA '{args.lga}' not found in manifest. "
-                  f"Available: {[e['label'] for e in manifest]}")
+            labels = [e["label"] for e in manifest]
+            print(f"'{args.lga}' not in manifest. Available: {labels}")
             sys.exit(1)
 
     for cfg in targets:
         run_lga(cfg, dry_run=args.dry_run, reuse_chunks=args.reuse_chunks)
 
     print("\n" + "="*65)
-    print("Pipeline complete.")
+    print("Done.")
 
 
 if __name__ == "__main__":
