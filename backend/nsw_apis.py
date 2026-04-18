@@ -1,3 +1,25 @@
+"""
+nsw_apis.py — NSW government spatial API client.
+
+Provides three core functions for resolving lot data from a street address:
+1) geocode() converts an address to lat/lon coordinates
+2) get_lot_polygon() fetches the cadastral parcel boundary from NSW SIX Maps  
+3) get_zone() looks up the planning zone from the NSW EPI Primary Planning Layers
+
+Geocoding uses a two-stage strategy: Nominatim (OpenStreetMap) is tried
+first for speed, with the NSW Planning Portal geocoder as a fallback for
+addresses Nominatim can't resolve (common with newer or unusual street
+names in Sydney). 
+
+The zone lookup translates long-form zone names (e.g.
+"Low Density Residential") into standard LEP codes (e.g. "R2") via a
+static mapping table. 
+
+When a lot polygon is available, the zone query
+uses the polygon centroid rather than the geocoded road point, which
+gives more accurate results for lots set back from the street.
+"""
+
 import requests
 import json
 import os
@@ -37,10 +59,13 @@ ZONE_NAME_TO_CODE = {
     "Natural Waterways": "W2",
     "Working Waterfront": "W3",
     "Unzoned": "UZ",
+    "General Residential": "R2",
+    "Commercial Centre": "B3",
 }
 
 
-def geocode(address: str) -> tuple[float, float]:
+# Primary geocoder using OpenStreetMap Nominatim.
+def _geocode_nominatim(address: str) -> tuple[float, float]:
     url = "https://nominatim.openstreetmap.org/search"
     params = {
         "q": address,
@@ -54,14 +79,49 @@ def geocode(address: str) -> tuple[float, float]:
     results = response.json()
 
     if not results:
-        raise ValueError(f"Could not geocode address: {address}")
+        raise ValueError(f"Nominatim returned no results for: {address}")
 
     lat = float(results[0]["lat"])
     lon = float(results[0]["lon"])
-    print(f"  Geocoded: {address} -> ({lat}, {lon})")
+    print(f"  Geocoded (Nominatim): {address} -> ({lat}, {lon})")
     return lat, lon
 
 
+# Fallback geocoder using the NSW Planning Portal API for addresses Nominatim misses.
+def _geocode_nsw(address: str) -> tuple[float, float]:
+    url = "https://api.apps1.nsw.gov.au/planning/viewersf/V1/ePlanningApi/address"
+    params = {"a": address}
+    response = requests.get(url, params=params, timeout=15)
+    response.raise_for_status()
+    results = response.json()
+
+    if not results:
+        raise ValueError(f"NSW geocoder returned no results for: {address}")
+
+    best = results[0]
+    lat = float(best["lat"])
+    lon = float(best["lng"])
+    print(f"  Geocoded (NSW API): {address} -> ({lat}, {lon})")
+    return lat, lon
+
+
+# Try Nominatim first, fall back to NSW Planning Portal geocoder.
+def geocode(address: str) -> tuple[float, float]:
+    try:
+        return _geocode_nominatim(address)
+    except Exception:
+        pass
+
+    try:
+        print(f"  Nominatim failed, trying NSW geocoder...")
+        return _geocode_nsw(address)
+    except Exception:
+        pass
+
+    raise ValueError(f"Could not geocode address: {address}")
+
+
+# Fetch the cadastral lot polygon from NSW SIX Maps using expanding bounding-box search around a point.
 def get_lot_polygon(lat: float, lon: float) -> dict:
     url = (
         "https://maps.six.nsw.gov.au/arcgis/rest/services"
@@ -100,6 +160,8 @@ def get_lot_polygon(lat: float, lon: float) -> dict:
 
     raise ValueError(f"No lot found at ({lat}, {lon})")
 
+
+# Look up the planning zone code at a point (or polygon centroid) from the NSW EPI Primary Planning Layers.
 def get_zone(lat: float, lon: float, polygon: dict = None) -> str:
     url = (
         "https://mapprod3.environment.nsw.gov.au/arcgis/rest/services"

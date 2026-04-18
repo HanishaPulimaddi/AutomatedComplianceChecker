@@ -30,11 +30,22 @@ app.add_middleware(
 
 # ── Load rules once at startup ───────────────────────────────
 
-# Canada Bay (confidence-filtered)
+# Canada Bay DCP (confidence-filtered)
 with open(DATA_DIR / "rules_r2_canada_bay.json") as f:
-    ALL_RULES = json.load(f)
-RULES = [r for r in ALL_RULES if r.get("confidence", 0) >= 0.8]
-print(f"Loaded {len(RULES)} Canada Bay rules")
+    CB_DCP = json.load(f)
+
+# Canada Bay LEP 2013
+try:
+    with open(DATA_DIR / "rules_canada_bay_lep.json") as f:
+        CB_LEP = json.load(f)
+    print(f"Loaded {len(CB_LEP)} Canada Bay LEP rules")
+except FileNotFoundError:
+    CB_LEP = []
+    print("WARNING: rules_canada_bay_lep.json not found - FSR will be missing for Canada Bay")
+
+# Merge: LEP first (priority), then DCP with confidence filter
+CB_RULES = CB_LEP + [r for r in CB_DCP if r.get("confidence", 0) >= 0.8]
+print(f"Loaded {len(CB_RULES)} Canada Bay rules total (LEP + DCP)")
 
 # Housing SEPP Ch6 (LMR)
 with open(DATA_DIR / "rules_housing_sepp_ch6.json") as f:
@@ -105,7 +116,7 @@ def get_rules_for_address(address: str) -> tuple[list, str, str, str]:
         # Match as a whole word so "ST PETERS" doesn't match "PETERSHAM"
         if re.search(r'\b' + re.escape(suburb) + r'\b', upper):
             return info
-    return (RULES, "Canada Bay Council", "canada_bay_dcp_part_e", "production")
+    return (CB_RULES, "Canada Bay Council", "canada_bay_dcp_part_e", "production")
 
 
 # ── Request models ──────────────────────────────────────────
@@ -280,7 +291,7 @@ def get_envelope(req: EnvelopeRequest):
             and r.get("dwelling_type") in ("dwelling_house", "all")
             and not r.get("superseded_by")
         ]
-        result             = compute_envelope_result(polygon, envelope_rules, lat, lon)
+        result             = compute_envelope_result(polygon, envelope_rules, lat, lon, lga=lga)
         envelope           = result["envelope"]
         development_controls = result["development_controls"]
 
