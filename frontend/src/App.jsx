@@ -148,11 +148,16 @@ export default function App() {
 
   const toLeaflet = (coords) => coords.map(([lng, lat]) => [lat, lng]);
 
+  // Normalise envelope — backend may return a list (tuple serialised) or a GeoJSON dict
+  const envelopeGeoJson = result
+    ? (Array.isArray(result.envelope) ? result.envelope[0] : result.envelope)
+    : null;
+
   const lotCoords = result?.lot_polygon?.coordinates?.[0]
     ? toLeaflet(result.lot_polygon.coordinates[0]) : null;
 
-  const envelopeCoords = result?.envelope?.coordinates?.[0]
-    ? toLeaflet(result.envelope.coordinates[0]) : null;
+  const envelopeCoords = envelopeGeoJson?.coordinates?.[0]
+    ? toLeaflet(envelopeGeoJson.coordinates[0]) : null;
 
   const mapBounds = lotCoords
     ? [
@@ -164,7 +169,7 @@ export default function App() {
   // Derived metrics computed client-side from polygon geometry + rules
   const metrics = result ? (() => {
     const lotArea      = result.lot_polygon?.coordinates ? polygonAreaSqm(result.lot_polygon.coordinates) : null;
-    const envArea      = result.envelope?.coordinates    ? polygonAreaSqm(result.envelope.coordinates)    : null;
+    const envArea      = envelopeGeoJson?.coordinates    ? polygonAreaSqm(envelopeGeoJson.coordinates)    : null;
     const coverage     = lotArea && envArea ? Math.round((envArea / lotArea) * 100) : null;
     const fsrRule      = result.rules_applied?.find(r => r.parameter === "fsr");
     const fsr          = fsrRule?.value ?? null;
@@ -342,7 +347,8 @@ function SitePlanDiagram({ result, metrics }) {
   const W = 640, H = 520, PAD = 72;
 
   const lotRing = result.lot_polygon.coordinates[0];
-  const envRing = result.envelope.coordinates[0];
+  const envelopeGeom = Array.isArray(result.envelope) ? result.envelope[0] : result.envelope;
+  const envRing = envelopeGeom.coordinates[0];
 
   // Centroid from lot ring (exclude closing point)
   const n = lotRing.length - 1;
@@ -370,8 +376,8 @@ function SitePlanDiagram({ result, metrics }) {
   const envSVG = envM.map(toSVG);
   const toPath = pts => pts.map((p, i) => `${i ? "L" : "M"}${p[0]},${p[1]}`).join(" ") + " Z";
 
-  // Front edge: nearest lot edge midpoint to geocoded road point
-  const geoM_pt = toM([result.lon, result.lat]);
+  // Front edge: nearest lot edge midpoint to geocoded road point (fallback to centroid offset)
+  const geoM_pt = (result.lon && result.lat) ? toM([result.lon, result.lat]) : [0, maxY + 10];
   let frontIdx = 0, minD = Infinity;
   for (let i = 0; i < lotM.length - 1; i++) {
     const mx = (lotM[i][0] + lotM[i+1][0]) / 2;
