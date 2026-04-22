@@ -1,6 +1,12 @@
+import os
+
+# Must be set before numpy/shapely are imported — fixes OpenBLAS memory
+# allocation failures on Windows (manifests as 500 errors on every request).
+os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+os.environ.setdefault("OMP_NUM_THREADS", "1")
+
 import json
 import sys
-import os
 import re
 import time
 from pathlib import Path
@@ -14,7 +20,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from nsw_apis import geocode, get_lot_polygon, get_zone
+from nsw_apis import geocode, get_lot_polygon, get_zone, get_lga, get_fsr_from_map
 from compute_envelope import compute_envelope
 from check_lmr import check_lmr_eligibility
 
@@ -76,35 +82,28 @@ print(f"Loaded {len(CHUNKS_PART_C)} Part C chunks, {len(CHUNKS_PART_E)} Part E c
 
 # ── LGA routing ─────────────────────────────────────────────
 
-# Suburb (uppercase) → (rules_list, lga_label, pdf_doc_name)
-_IW_SUBURB_MAP: dict[str, tuple[list, str, str]] = {}
-
-for suburb in [
-    "MARRICKVILLE", "TEMPE", "ST PETERS", "SYDENHAM", "DULWICH HILL",
-    "HURLSTONE PARK", "PETERSHAM", "STANMORE", "ENMORE", "CAMPERDOWN",
-    "NEWTOWN", "LEWISHAM", "SUMMER HILL",
-]:
-    _IW_SUBURB_MAP[suburb] = (IW_MARRICKVILLE, "Inner West Council", "marrickville_dcp")
-
-for suburb in ["ASHFIELD", "CROYDON", "CROYDON PARK", "HABERFIELD", "DOBROYD POINT"]:
-    _IW_SUBURB_MAP[suburb] = (IW_ASHFIELD, "Inner West Council", "ashfield_dcp")
-
-# Former Leichhardt LGA suburbs (Annandale, Balmain, Glebe, Rozelle, etc.)
-# are zoned R1 General Residential — outside R2 scope, not routed.
+# Ashfield DCP suburbs within Inner West — everything else uses Marrickville DCP
+_ASHFIELD_SUBURBS = {"ASHFIELD", "CROYDON", "CROYDON PARK", "HABERFIELD", "DOBROYD POINT"}
 
 
-def get_rules_for_address(address: str) -> tuple[list, str, str]:
+def get_rules_for_lga(lga_name: str, address: str) -> tuple[list, str, str]:
     """
-    Return (rules_list, lga_label, pdf_doc) for the given address string.
-    Matches suburb tokens against the Inner West suburb map;
-    falls back to Canada Bay if no match is found.
+    Return (rules_list, lga_label, pdf_doc) using the authoritative LGA name
+    from the NSW Planning API. Raises ValueError for unsupported councils.
     """
-    upper = address.upper()
-    for suburb, info in _IW_SUBURB_MAP.items():
-        # Match as a whole word so "ST PETERS" doesn't match "PETERSHAM"
-        if re.search(r'\b' + re.escape(suburb) + r'\b', upper):
-            return info
-    return (RULES, "Canada Bay Council", "canada_bay_dcp_part_e")
+    lga_upper = lga_name.upper()
+    if lga_upper == "INNER WEST":
+        upper = address.upper()
+        for suburb in _ASHFIELD_SUBURBS:
+            if re.search(r'\b' + re.escape(suburb) + r'\b', upper):
+                return (IW_ASHFIELD, "Inner West Council", "ashfield_dcp")
+        return (IW_MARRICKVILLE, "Inner West Council", "marrickville_dcp")
+    elif lga_upper == "CANADA BAY":
+        return (RULES, "Canada Bay Council", "canada_bay_dcp_part_e")
+    else:
+        raise ValueError(
+            f"Address is in {lga_name} — only Canada Bay and Inner West are currently supported."
+        )
 
 
 # ── Request models ──────────────────────────────────────────
@@ -173,6 +172,42 @@ def search_chunks(
     return {"total": len(pool), "chunks": pool[:limit]}
 
 
+def _resolve_lot(address: str) -> tuple[float, float, str, dict, str, str, str]:
+    """
+    Return (lat, lon, zone, polygon, lga_name, lga_label, pdf_doc).
+    Uses cache when available; fetches from NSW APIs otherwise.
+    Raises ValueError for unsupported councils.
+    FSR is fetched from the NSW Planning FSR Map and stored in cache under "fsr".
+    """
+    cached = get_cached_lot(address)
+    if cached:
+        lat, lon = cached["lat"], cached["lon"]
+        zone, polygon = cached["zone"], cached["polygon"]
+        dirty = False
+        lga_name = cached.get("lga_name")
+        if not lga_name:
+            lga_name = get_lga(lat, lon)
+            cached["lga_name"] = lga_name
+            dirty = True
+        if "fsr" not in cached:
+            cached["fsr"] = get_fsr_from_map(lat, lon)
+            dirty = True
+        if dirty:
+            save_to_cache(address, cached)
+    else:
+        print(f"Fetching from NSW APIs: {address}")
+        lat, lon = geocode(address)
+        time.sleep(0.5)
+        lga_name = get_lga(lat, lon)
+        polygon = get_lot_polygon(lat, lon)
+        zone = get_zone(lat, lon, polygon=polygon)
+        fsr = get_fsr_from_map(lat, lon)
+        save_to_cache(address, {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon, "lga_name": lga_name, "fsr": fsr})
+
+    _, lga_label, pdf_doc = get_rules_for_lga(lga_name, address)
+    return lat, lon, zone, polygon, lga_name, lga_label, pdf_doc
+
+
 @app.post("/site")
 def get_site(req: SiteRequest):
     """
@@ -180,28 +215,9 @@ def get_site(req: SiteRequest):
     Checks cache first, fetches from NSW APIs if not cached.
     """
     try:
-        _, lga, _ = get_rules_for_address(req.address)
-
         cached = get_cached_lot(req.address)
-        if cached:
-            return {
-                "address":  req.address,
-                "lat":      cached["lat"],
-                "lon":      cached["lon"],
-                "zone":     cached["zone"],
-                "polygon":  cached["polygon"],
-                "lga":      lga,
-                "cached":   True
-            }
-
-        print(f"Fetching from NSW APIs: {req.address}")
-        lat, lon = geocode(req.address)
-        time.sleep(0.5)
-        polygon = get_lot_polygon(lat, lon)
-        zone = get_zone(lat, lon, polygon=polygon)
-
-        lot_data = {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon}
-        save_to_cache(req.address, lot_data)
+        is_cached = cached is not None
+        lat, lon, zone, polygon, _, lga_label, _ = _resolve_lot(req.address)
 
         return {
             "address":  req.address,
@@ -209,8 +225,8 @@ def get_site(req: SiteRequest):
             "lon":      lon,
             "zone":     zone,
             "polygon":  polygon,
-            "lga":      lga,
-            "cached":   False
+            "lga":      lga_label,
+            "cached":   is_cached,
         }
 
     except ValueError as e:
@@ -226,49 +242,40 @@ def get_envelope(req: EnvelopeRequest):
     computed from the lot polygon and DCP rules for the correct LGA.
     """
     try:
-        rules, lga, pdf_doc = get_rules_for_address(req.address)
+        lat, lon, zone, polygon, lga_name, lga_label, pdf_doc = _resolve_lot(req.address)
 
-        cached = get_cached_lot(req.address)
-        if cached:
-            lat     = cached["lat"]
-            lon     = cached["lon"]
-            zone    = cached["zone"]
-            polygon = cached["polygon"]
-        else:
-            print(f"Fetching from NSW APIs: {req.address}")
-            lat, lon = geocode(req.address)
-            time.sleep(0.5)
-            polygon = get_lot_polygon(lat, lon)
-            zone = get_zone(lat, lon, polygon=polygon)
-            lot_data = {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon}
-            save_to_cache(req.address, lot_data)
+        if zone not in ("R2",):
+            zone_names = {
+                "R1": "General Residential", "R3": "Medium Density Residential",
+                "R4": "High Density Residential", "B4": "Mixed Use",
+            }
+            label = f"{zone} {zone_names.get(zone, '')}".strip()
+            raise ValueError(
+                f"This address is zoned {label} — only R2 Low Density Residential is currently supported."
+            )
+
+        rules, _, _ = get_rules_for_lga(lga_name, req.address)
+        fsr_from_map = (get_cached_lot(req.address) or {}).get("fsr")
 
         # Pre-filter rules by zone + dwelling_type before passing to
-        # compute_envelope so its first-match logic picks the correct rule
-        # (e.g. 0.9m dwelling_house setback, not 1.5m secondary_dwelling;
-        # 8.5m LEP height, not 6m DS23.1 outbuilding wall height).
+        # compute_envelope so its first-match logic picks the correct rule.
         envelope_rules = [
             r for r in rules
             if r.get("zone") in (zone, "all_residential", "all")
             and r.get("dwelling_type") in ("dwelling_house", "all")
             and not r.get("superseded_by")
+            and r.get("parameter") != "fsr"  # FSR comes from the map layer
         ]
         envelope = compute_envelope(polygon, envelope_rules, lat, lon)
 
         applied_params = {
-            # Setbacks
             "front_setback", "rear_setback", "rear_setback_upper",
             "side_setback_ground", "side_setback_upper",
-            # Height & bulk
             "max_height", "max_storeys", "height_plane", "max_wall_height",
-            # Area controls
-            "landscaped_area_pct", "site_coverage_pct", "fsr",
+            "landscaped_area_pct", "site_coverage_pct",
             "private_open_space", "private_open_space_min_dimension",
-            # Separation
             "building_separation",
-            # Parking & access
             "parking_spaces_per_dwelling", "max_driveway_width",
-            # Fencing
             "front_fence_height_solid", "front_fence_height_open",
             "side_fence_height", "rear_fence_height"
         }
@@ -282,24 +289,60 @@ def get_envelope(req: EnvelopeRequest):
             and not r.get("superseded_by")
         ]
 
-        citations = []
-        for r in applied_rules:
-            citations.append({
-                "parameter": r["parameter"],
-                "value":     r["value"],
-                "unit":      r["unit"],
-                "operator":  r["operator"],
-                "clause":    r.get("source_clause", ""),
-                "page":      r.get("source_page", 0),
-                "text":      r.get("source_text", ""),
+        # Group by parameter: one entry per parameter with a primary value
+        # (unconditional rule) and a variants list for conditional rules.
+        def _make_entry(r):
+            return {
+                "value":      r["value"],
+                "unit":       r["unit"],
+                "operator":   r["operator"],
+                "clause":     r.get("source_clause", ""),
+                "page":       r.get("source_page", 0),
+                "text":       r.get("source_text", ""),
                 "conditions": r.get("conditions", []),
                 "exceptions": r.get("exceptions", []),
-                "pdf_link":  f"/docs/{pdf_doc}.pdf#page={r.get('source_page', 1)}"
+                "pdf_link":   f"/docs/{pdf_doc}.pdf#page={r.get('source_page', 1)}"
+            }
+
+        grouped: dict[str, dict] = {}
+        for r in applied_rules:
+            param = r["parameter"]
+            entry = _make_entry(r)
+            if param not in grouped:
+                grouped[param] = {**entry, "parameter": param, "variants": []}
+            else:
+                # Primary = first unconditional rule; demote conditional ones to variants
+                existing_is_conditional = bool(grouped[param]["conditions"])
+                this_is_conditional = bool(entry["conditions"])
+                if existing_is_conditional and not this_is_conditional:
+                    # Promote this unconditional rule to primary, demote existing
+                    old_primary = {k: grouped[param][k] for k in entry}
+                    grouped[param].update({**entry, "parameter": param})
+                    grouped[param]["variants"].append(old_primary)
+                else:
+                    grouped[param]["variants"].append(entry)
+
+        citations = list(grouped.values())
+
+        # Inject the single authoritative FSR from the LEP map layer
+        if fsr_from_map is not None:
+            citations.append({
+                "parameter":  "fsr",
+                "value":      fsr_from_map,
+                "unit":       "ratio",
+                "operator":   "max",
+                "clause":     "Clause 4.4",
+                "page":       0,
+                "text":       f"Maximum floor space ratio: {fsr_from_map}:1 (from LEP FSR Map)",
+                "conditions": [],
+                "exceptions": [],
+                "variants":   [],
+                "pdf_link":   ""
             })
 
         return {
             "address":       req.address,
-            "lga":           lga,
+            "lga":           lga_label,
             "zone":          zone,
             "lot_polygon":   polygon,
             "envelope":      envelope,
@@ -324,16 +367,8 @@ def get_lmr(req: SiteRequest):
     walking-distance-to-station check not yet wired into this endpoint.
     """
     try:
-        lot_data = get_cached_lot(req.address)
-        if not lot_data:
-            print(f"Fetching from NSW APIs: {req.address}")
-            lat, lon = geocode(req.address)
-            time.sleep(0.5)
-            polygon = get_lot_polygon(lat, lon)
-            zone = get_zone(lat, lon, polygon=polygon)
-            lot_data = {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon}
-            save_to_cache(req.address, lot_data)
-
+        lat, lon, zone, polygon, _, _, _ = _resolve_lot(req.address)
+        lot_data = {"lat": lat, "lon": lon, "zone": zone, "polygon": polygon}
         result = check_lmr_eligibility(req.address, lot_data, SEPP_RULES)
         return result
 

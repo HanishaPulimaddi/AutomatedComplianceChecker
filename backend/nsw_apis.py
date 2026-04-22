@@ -41,23 +41,24 @@ ZONE_NAME_TO_CODE = {
 
 
 def geocode(address: str) -> tuple[float, float]:
-    url = "https://nominatim.openstreetmap.org/search"
+    # ArcGIS World Geocoder — authoritative Australian address data, no API key needed
+    url = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates"
     params = {
-        "q": address,
-        "format": "json",
-        "limit": 1,
-        "countrycodes": "au"
+        "SingleLine": address,
+        "countryCode": "AUS",
+        "maxLocations": 1,
+        "outFields": "",
+        "f": "json",
     }
-    headers = {"User-Agent": "AutomatedComplianceChecker/1.0"}
-    response = requests.get(url, params=params, headers=headers)
+    response = requests.get(url, params=params, timeout=15)
     response.raise_for_status()
-    results = response.json()
+    candidates = response.json().get("candidates", [])
 
-    if not results:
+    if not candidates:
         raise ValueError(f"Could not geocode address: {address}")
 
-    lat = float(results[0]["lat"])
-    lon = float(results[0]["lon"])
+    loc = candidates[0]["location"]
+    lat, lon = loc["y"], loc["x"]
     print(f"  Geocoded: {address} -> ({lat}, {lon})")
     return lat, lon
 
@@ -99,6 +100,59 @@ def get_lot_polygon(lat: float, lon: float) -> dict:
             return polygon
 
     raise ValueError(f"No lot found at ({lat}, {lon})")
+
+def get_fsr_from_map(lat: float, lon: float) -> float | None:
+    """Return the LEP FSR value for a point from the NSW Planning FSR Map layer."""
+    url = (
+        "https://mapprod3.environment.nsw.gov.au/arcgis/rest/services"
+        "/Planning/EPI_Primary_Planning_Layers/MapServer/1/query"
+    )
+    params = {
+        "geometry": f"{lon},{lat}",
+        "geometryType": "esriGeometryPoint",
+        "inSR": "4326",
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": "FSR,LAY_CLASS",
+        "returnGeometry": "false",
+        "f": "json",
+    }
+    response = requests.get(url, params=params, timeout=15)
+    response.raise_for_status()
+    features = response.json().get("features", [])
+    # Pick the feature with a numeric FSR value (skip "CA" / null entries)
+    for feat in features:
+        fsr = feat["attributes"].get("FSR")
+        if fsr is not None:
+            print(f"  FSR from map: {fsr} ({feat['attributes'].get('LAY_CLASS')})")
+            return float(fsr)
+    print("  FSR from map: not found")
+    return None
+
+
+def get_lga(lat: float, lon: float) -> str:
+    """Return the LGA name for a point using the NSW Planning API."""
+    url = (
+        "https://mapprod3.environment.nsw.gov.au/arcgis/rest/services"
+        "/Planning/EPI_Primary_Planning_Layers/MapServer/2/query"
+    )
+    params = {
+        "geometry": f"{lon},{lat}",
+        "geometryType": "esriGeometryPoint",
+        "inSR": "4326",
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": "LGA_NAME",
+        "returnGeometry": "false",
+        "f": "json",
+    }
+    response = requests.get(url, params=params, timeout=15)
+    response.raise_for_status()
+    features = response.json().get("features", [])
+    if not features:
+        raise ValueError(f"Could not determine LGA at ({lat}, {lon})")
+    lga = features[0]["attributes"].get("LGA_NAME", "")
+    print(f"  LGA: {lga}")
+    return lga
+
 
 def get_zone(lat: float, lon: float, polygon: dict = None) -> str:
     url = (
