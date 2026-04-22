@@ -458,23 +458,31 @@ function SitePlanDiagram({ result, metrics }) {
     return Math.round(Math.sqrt(dx*dx+dy*dy));
   }
 
-  // Edge length label — pushed outside lot, only for side edges
-  function edgeLenLabel(edgeIdx) {
+  const sideEdges = Array.from({length: lotM.length-1}, (_,i) => i)
+    .filter(i => i !== frontIdx && i !== rearIdx);
+
+  // Dimension label placed outward from edge midpoint at given px offset, with role subtitle
+  function dimLabel(edgeIdx, role, outPx) {
     const p1 = lotSVG[edgeIdx], p2 = lotSVG[edgeIdx+1];
     const mid = [(p1[0]+p2[0])/2, (p1[1]+p2[1])/2];
     const [nx, ny] = inwardNormal(edgeIdx);
-    // Push outward (opposite of inward normal)
-    const ox = -nx * 26, oy = -ny * 26;
+    const lx = mid[0] - nx * outPx, ly = mid[1] - ny * outPx;
+    // angle of edge for rotated text
+    const dx = p2[0]-p1[0], dy = p2[1]-p1[1];
+    const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+    // keep text readable — flip if upside down
+    const rot = (angleDeg > 90 || angleDeg < -90) ? angleDeg + 180 : angleDeg;
     return (
-      <text key={"el"+edgeIdx} x={mid[0]+ox} y={mid[1]+oy+4}
-        textAnchor="middle" fontSize="10" fill="#64748b">
-        {edgeLenM(edgeIdx)}m
-      </text>
+      <g key={"dl"+edgeIdx} transform={`rotate(${rot},${lx},${ly})`}>
+        <text x={lx} y={ly - 3} textAnchor="middle" fontSize="11" fontWeight="700" fill="#475569">
+          {edgeLenM(edgeIdx)}m
+        </text>
+        <text x={lx} y={ly + 9} textAnchor="middle" fontSize="8" fill="#94a3b8" letterSpacing="0.8">
+          {role}
+        </text>
+      </g>
     );
   }
-
-  const sideEdges = Array.from({length: lotM.length-1}, (_,i) => i)
-    .filter(i => i !== frontIdx && i !== rearIdx);
 
   // Scale bar: 10m
   const scalePx10 = scale * 10;
@@ -512,39 +520,28 @@ function SitePlanDiagram({ result, metrics }) {
           x2={lotSVG[frontIdx+1][0]} y2={lotSVG[frontIdx+1][1]}
           stroke="#ef4444" strokeWidth="5" strokeLinecap="round"
         />
-        {/* Street label */}
-        {(() => {
-          const p1 = lotSVG[frontIdx], p2 = lotSVG[frontIdx+1];
-          const mid = [(p1[0]+p2[0])/2, (p1[1]+p2[1])/2];
-          const dx = p2[0]-p1[0], dy = p2[1]-p1[1];
-          const len = Math.sqrt(dx*dx+dy*dy)||1;
-          const nx = -dy/len, ny = dx/len;
-          const cx = W/2, cy = H/2;
-          const [ox2, oy2] = nx*(cx-mid[0])+ny*(cy-mid[1]) < 0 ? [nx*24, ny*24] : [-nx*24, -ny*24];
-          return <text x={mid[0]+ox2} y={mid[1]+oy2+4} textAnchor="middle" fontSize="10" fontWeight="700" fill="#ef4444" letterSpacing="1">STREET</text>;
-        })()}
-
-        {/* Setback arrows — front, rear, one per side pair */}
-        {setbackArrow(frontIdx, fsb, "#6366f1")}
-        {setbackArrow(rearIdx,  rsb, "#6366f1")}
-        {sideEdges.slice(0, 1).map(i => setbackArrow(i, ssb, "#16a34a"))}
-        {sideEdges.length > 1 && setbackArrow(sideEdges[sideEdges.length - 1], ssb, "#16a34a")}
-
-        {/* Edge length labels — sides outside; front/rear outside but not clashing with STREET */}
-        {sideEdges.map(i => edgeLenLabel(i))}
-        {edgeLenLabel(rearIdx)}
-        {/* Front width: offset further so it doesn't overlap STREET label */}
+        {/* STREET label — 22px outward from front edge, parallel to edge */}
         {(() => {
           const p1 = lotSVG[frontIdx], p2 = lotSVG[frontIdx+1];
           const mid = [(p1[0]+p2[0])/2, (p1[1]+p2[1])/2];
           const [nx, ny] = inwardNormal(frontIdx);
-          return (
-            <text x={mid[0]-nx*44} y={mid[1]-ny*44+4}
-              textAnchor="middle" fontSize="10" fill="#64748b">
-              {edgeLenM(frontIdx)}m
-            </text>
-          );
+          const lx = mid[0]-nx*22, ly = mid[1]-ny*22;
+          const dx = p2[0]-p1[0], dy = p2[1]-p1[1];
+          const angleDeg = Math.atan2(dy, dx) * 180 / Math.PI;
+          const rot = (angleDeg > 90 || angleDeg < -90) ? angleDeg + 180 : angleDeg;
+          return <text x={lx} y={ly+4} textAnchor="middle" fontSize="10" fontWeight="700"
+            fill="#ef4444" letterSpacing="1" transform={`rotate(${rot},${lx},${ly})`}>STREET</text>;
         })()}
+
+        {/* Setback arrows — front and rear inside lot; skip side pill (too small, hatch shows zone) */}
+        {setbackArrow(frontIdx, fsb, "#6366f1")}
+        {setbackArrow(rearIdx,  rsb, "#6366f1")}
+
+        {/* Dimension labels — parallel to each edge, outward offset so they never overlap pills */}
+        {dimLabel(frontIdx, "FRONT", 52)}
+        {dimLabel(rearIdx,  "REAR",  48)}
+        {sideEdges.slice(0, 1).map(i => dimLabel(i, "SIDE", 44))}
+        {sideEdges.length > 1 && dimLabel(sideEdges[sideEdges.length-1], "SIDE", 44)}
 
         {/* North compass — top right, proper two-tone needle */}
         <g transform={`translate(${W-48}, 48)`}>
