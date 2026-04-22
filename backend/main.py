@@ -342,6 +342,8 @@ def get_envelope(req: EnvelopeRequest):
 
         return {
             "address":       req.address,
+            "lat":           lat,
+            "lon":           lon,
             "lga":           lga_label,
             "zone":          zone,
             "lot_polygon":   polygon,
