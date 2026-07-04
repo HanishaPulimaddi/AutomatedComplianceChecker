@@ -3,6 +3,8 @@ import math
 from shapely.geometry import Polygon, Point, LineString, mapping, shape
 from shapely.ops import nearest_points
 
+from nsw_apis import get_road_segments_near_point
+
 
 def get_front_edge(polygon_coords: list, geocoded_lon: float, geocoded_lat: float) -> tuple:
     """
@@ -45,6 +47,80 @@ def get_front_edge(polygon_coords: list, geocoded_lon: float, geocoded_lat: floa
     return front_idx, (mid_x, mid_y)
 
 
+def _unit_dir(p1, p2):
+    dx, dy = p2[0] - p1[0], p2[1] - p1[1]
+    length = math.hypot(dx, dy)
+    return (dx / length, dy / length) if length > 1e-12 else None
+
+
+def _road_runs_alongside_edge(edge_p1, edge_p2, segment_points,
+                               max_dist_m: float = 15, max_angle_deg: float = 20) -> bool:
+    """True if a road polyline both passes close to this edge AND runs
+    roughly parallel to it — proximity alone isn't enough, since a road can
+    pass near a lot corner (e.g. on a bend) without that edge actually
+    fronting it, which produced a false positive on a real (non-corner) lot
+    during testing."""
+    edge_line = LineString([edge_p1, edge_p2])
+    road_line = LineString(segment_points)
+    dist_deg = edge_line.distance(road_line)
+    if dist_deg * 111000 > max_dist_m:
+        return False
+
+    edge_dir = _unit_dir(edge_p1, edge_p2)
+    road_dir = _unit_dir(segment_points[0], segment_points[-1])
+    if edge_dir is None or road_dir is None:
+        return False
+    dot = max(-1.0, min(1.0, edge_dir[0] * road_dir[0] + edge_dir[1] * road_dir[1]))
+    angle_deg = math.degrees(math.acos(abs(dot)))  # abs() folds anti-parallel to parallel
+    return angle_deg <= max_angle_deg
+
+
+def find_secondary_frontage_edges(
+    ring: list, front_edge_idx: int, rear_edge_idx: int, n: int,
+) -> list[int]:
+    """
+    Detect corner-lot edges: a non-front, non-rear edge that actually runs
+    alongside a DIFFERENT public road than the front, rather than a
+    neighbour's yard. A normal internal lot's side edges never border any
+    street; a corner lot's second side runs close to AND roughly parallel
+    with a genuinely different street's road segment.
+
+    Costs one live NSW road-layer lookup per non-front/non-rear edge (2 for
+    a typical rectangular lot), plus one for the front edge itself.
+    """
+    fp1, fp2 = ring[front_edge_idx], ring[(front_edge_idx + 1) % n]
+    front_mid_lon = (fp1[0] + fp2[0]) / 2
+    front_mid_lat = (fp1[1] + fp2[1]) / 2
+    try:
+        front_road_names = {
+            s["name"] for s in get_road_segments_near_point(front_mid_lat, front_mid_lon, radius_m=15)
+            if _road_runs_alongside_edge(fp1, fp2, s["points"])
+        }
+    except Exception:
+        front_road_names = set()
+
+    secondary = []
+    for i in range(n):
+        if i in (front_edge_idx, rear_edge_idx):
+            continue
+        p1 = ring[i]
+        p2 = ring[(i + 1) % n]
+        mid_lon = (p1[0] + p2[0]) / 2
+        mid_lat = (p1[1] + p2[1]) / 2
+        try:
+            segments = get_road_segments_near_point(mid_lat, mid_lon, radius_m=15)
+        except Exception:
+            segments = []  # network hiccup — fail safe to "not a corner", don't block the envelope
+        matches = [
+            s["name"] for s in segments
+            if s["name"] not in front_road_names and _road_runs_alongside_edge(p1, p2, s["points"])
+        ]
+        if matches:
+            print(f"  Secondary frontage detected: edge {i} borders {matches[0]}")
+            secondary.append(i)
+    return secondary
+
+
 def _apply_directional_setbacks(
     lot: Polygon,
     coords: list,
@@ -52,6 +128,19 @@ def _apply_directional_setbacks(
     front_setback_deg: float,
     rear_setback_deg: float,
     side_setback_deg: float,
+    secondary_setback_deg: float | None = None,
+    # Default OFF: direct testing against a real, verified non-corner lot
+    # (35 Connecticut Avenue, Five Dock — a 6-sided/irregular block) produced
+    # a false positive at 9.9m distance and within the parallelism tolerance,
+    # because an internal boundary happened to run close to and roughly
+    # parallel with the street's broader curve without being a real second
+    # frontage. Distinguishing "genuine corner lot" from "coincidental
+    # proximity" needs real cadastral frontage-count data, not inferred
+    # road-centerline geometry — shipping this default-on risks silently
+    # shrinking envelopes on ordinary irregular-shaped lots. Kept available
+    # for opt-in / future use once validated against confirmed corner-lot
+    # addresses; do not flip this default without doing that first.
+    detect_corner_lots: bool = False,
 ) -> Polygon:
     """
     Clip the lot polygon by offsetting each edge inward by the correct setback.
@@ -65,6 +154,9 @@ def _apply_directional_setbacks(
         coords:            List of [lon, lat] ring points (closing point included).
         front_edge_idx:    Index of the front edge start vertex (from get_front_edge).
         *_setback_deg:     Setback distances already converted to decimal degrees.
+        secondary_setback_deg: Corner-lot secondary-frontage setback, if the
+                           ruleset has one; falls back to side_setback_deg if
+                           no corner lot is detected or this is None.
 
     Returns:
         Shapely Polygon of the buildable area (may be MultiPolygon for odd lots).
@@ -94,6 +186,12 @@ def _apply_directional_setbacks(
             max_dist = d
             rear_edge_idx = i
 
+    secondary_frontage_edges: list[int] = []
+    if detect_corner_lots and secondary_setback_deg is not None:
+        secondary_frontage_edges = find_secondary_frontage_edges(
+            ring, front_edge_idx, rear_edge_idx, n
+        )
+
     # ── Clip lot edge by edge ────────────────────────────────────────────────
     result = lot
     centroid = lot.centroid
@@ -107,6 +205,8 @@ def _apply_directional_setbacks(
             sb = front_setback_deg
         elif i == rear_edge_idx:
             sb = rear_setback_deg
+        elif i in secondary_frontage_edges:
+            sb = secondary_setback_deg
         else:
             sb = side_setback_deg
 
@@ -283,9 +383,10 @@ def compute_envelope_result(
     geocoded_lat: float,
     geocoded_lon: float,
 ) -> dict:
-    envelope = compute_envelope(lot_polygon, rules, geocoded_lat, geocoded_lon)
+    envelope, fallback_warnings = compute_envelope(lot_polygon, rules, geocoded_lat, geocoded_lon)
     return {
         "envelope": envelope,
+        "fallback_warnings": fallback_warnings,
         "development_controls": compute_development_controls(
             lot_polygon,
             envelope,
@@ -300,11 +401,13 @@ def compute_envelope(lot_polygon: dict, rules: list,
     Given a lot polygon and a list of rules, compute the buildable envelope.
 
     lot_polygon:   GeoJSON Polygon {"type": "Polygon", "coordinates": [...]}
-    rules:         list of rule dicts from rules_r2_canada_bay_raw.json
+    rules:         list of rule dicts (e.g. from data/rules_r2_canada_bay.json)
     geocoded_lat:  raw geocoded latitude (lands on the road)
     geocoded_lon:  raw geocoded longitude (lands on the road)
 
-    Returns a GeoJSON Polygon of the buildable area.
+    Returns (geojson_polygon, fallback_warnings) — fallback_warnings is a list
+    of dicts, one per setback that had no matching rule and fell back to a
+    generic placeholder value; empty if every setback came from a real rule.
     """
     coords = lot_polygon["coordinates"][0]
     lot = Polygon(coords)
@@ -325,6 +428,11 @@ def compute_envelope(lot_polygon: dict, rules: list,
     rear_setback       = None
     side_setback       = None
     side_setback_upper = None
+    secondary_setback  = None  # corner-lot secondary-street side setback, if the DCP has one
+
+    def _is_corner_condition(rule: dict) -> bool:
+        text = " ".join(rule.get("conditions", [])).lower()
+        return "secondary street" in text or "corner lot" in text or "corner" in text
 
     for rule in rules:
         param = rule.get("parameter")
@@ -343,7 +451,12 @@ def compute_envelope(lot_polygon: dict, rules: list,
                       f"(clause {rule.get('source_clause', 'unknown')})")
 
         elif param == "side_setback_ground" and op == "min":
-            if side_setback is None:
+            if _is_corner_condition(rule):
+                if secondary_setback is None:
+                    secondary_setback = rule["value"] * M_TO_DEG
+                    print(f"  Secondary-frontage (corner lot) side setback from rule: "
+                          f"{rule['value']}m (clause {rule.get('source_clause', 'unknown')})")
+            elif side_setback is None:
                 side_setback = rule["value"] * M_TO_DEG
                 print(f"  Side setback (ground) from rule: {rule['value']}m "
                       f"(clause {rule.get('source_clause', 'unknown')})")
@@ -354,18 +467,31 @@ def compute_envelope(lot_polygon: dict, rules: list,
                 print(f"  Side setback (upper) from rule: {rule['value']}m "
                       f"(clause {rule.get('source_clause', 'unknown')})")
 
-    # Fall back to Canada Bay DCP R2 defaults only if rule not found
+    # Fall back to Canada Bay DCP R2 defaults only if rule not found. Every
+    # fallback used is collected in `fallback_warnings` and returned to the
+    # caller — this shape is only as good as the setbacks that produced it,
+    # and a silent made-up number looks identical to a real one unless the
+    # caller (and ultimately the end user) is told which is which.
+    fallback_warnings = []
     if front_setback is None:
-        print("  WARNING: no front_setback rule found, using default 4.5m")
+        msg = "No front setback rule matched this lot/zone — used a generic placeholder of 4.5m instead of a real council figure."
+        print(f"  WARNING: {msg}")
+        fallback_warnings.append({"parameter": "front_setback", "placeholder_value_m": 4.5, "message": msg})
         front_setback = 4.5 * M_TO_DEG
     if rear_setback is None:
-        print("  WARNING: no rear_setback rule found, using default 4.0m")
+        msg = "No rear setback rule matched this lot/zone — used a generic placeholder of 4.0m instead of a real council figure."
+        print(f"  WARNING: {msg}")
+        fallback_warnings.append({"parameter": "rear_setback", "placeholder_value_m": 4.0, "message": msg})
         rear_setback = 4.0 * M_TO_DEG
     if side_setback is None:
-        print("  WARNING: no side_setback_ground rule found, using default 0.9m")
+        msg = "No side setback (ground floor) rule matched this lot/zone — used a generic placeholder of 0.9m instead of a real council figure."
+        print(f"  WARNING: {msg}")
+        fallback_warnings.append({"parameter": "side_setback_ground", "placeholder_value_m": 0.9, "message": msg})
         side_setback = 0.9 * M_TO_DEG
     if side_setback_upper is None:
-        print("  WARNING: no side_setback_upper rule found, using default 1.5m")
+        msg = "No side setback (upper floor) rule matched this lot/zone — used a generic placeholder of 1.5m instead of a real council figure."
+        print(f"  WARNING: {msg}")
+        fallback_warnings.append({"parameter": "side_setback_upper", "placeholder_value_m": 1.5, "message": msg})
         side_setback_upper = 1.5 * M_TO_DEG
 
     print(f"  Setbacks — front: {front_setback*111000:.1f}m, "
@@ -377,10 +503,13 @@ def compute_envelope(lot_polygon: dict, rules: list,
     # Each edge is offset inward by its specific setback (front / rear / side).
     # This replaces the previous uniform average buffer which was inaccurate
     # by up to 50% for lots where front >> side (4.5m vs 0.9m in Canada Bay R2).
-    # front_edge_idx already computed above by get_front_edge.
+    # front_edge_idx already computed above by get_front_edge. A corner lot's
+    # secondary-street-facing side gets secondary_setback instead of the
+    # plain side_setback, detected live against the NSW road layer.
     envelope = _apply_directional_setbacks(
         lot, coords, front_edge_idx,
-        front_setback, rear_setback, side_setback
+        front_setback, rear_setback, side_setback,
+        secondary_setback_deg=secondary_setback,
     )
 
     if envelope is None or envelope.is_empty:
@@ -390,7 +519,7 @@ def compute_envelope(lot_polygon: dict, rules: list,
     print(f"  Buildable envelope area: {envelope_area_sqm:.1f} sqm")
     print(f"  Coverage: {(envelope_area_sqm/lot_area_sqm)*100:.1f}% of lot")
 
-    return mapping(envelope)
+    return mapping(envelope), fallback_warnings
 
 
 if __name__ == "__main__":

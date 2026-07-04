@@ -8,8 +8,7 @@ rules file for that LGA and checks:
 
 Usage:
     python test_accuracy.py                          # test all LGAs
-    python test_accuracy.py --lga Ashfield           # one LGA
-    python test_accuracy.py --rules data/rules_inner_west_ashfield_pipeline.json --lga Ashfield
+    python test_accuracy.py --lga "Canada Bay"       # one LGA
     python test_accuracy.py --verbose                # show per-param detail
 """
 
@@ -28,22 +27,22 @@ GT_PATH  = BASE_DIR / "data" / "ground_truth_addresses.json"
 
 # Maps dcp_routing → rules file (current hand-tuned files)
 RULES_FILES = {
-    "Inner West DCP 2016 Chapter F": BASE_DIR / "data" / "rules_inner_west_ashfield.json",
-    "Marrickville DCP 2011":         BASE_DIR / "data" / "rules_inner_west_marrickville.json",
     "canada_bay":                    BASE_DIR / "data" / "rules_r2_canada_bay.json",
+    "canada_bay_r3":                 BASE_DIR / "data" / "rules_r3_canada_bay_pipeline.json",
+    "canada_bay_r4":                 BASE_DIR / "data" / "rules_r3_canada_bay_pipeline.json",  # R4 shares R3's Part F ruleset
 }
 
 # Pipeline output files (used when --pipeline flag is set)
 PIPELINE_FILES = {
-    "Inner West DCP 2016 Chapter F": BASE_DIR / "data" / "rules_inner_west_ashfield_pipeline.json",
-    "Marrickville DCP 2011":         BASE_DIR / "data" / "rules_inner_west_marrickville_pipeline.json",
     "canada_bay":                    BASE_DIR / "data" / "rules_r2_canada_bay_pipeline.json",
+    "canada_bay_r3":                 BASE_DIR / "data" / "rules_r3_canada_bay_pipeline.json",
+    "canada_bay_r4":                 BASE_DIR / "data" / "rules_r3_canada_bay_pipeline.json",
 }
 
-# LGA label → dcp_routing key
+# LGA label → dcp_routing key. Canada Bay is zone-dependent (R2 uses Part E,
+# R3/R4 both use Part F) — resolved per-entry against the GT record's "zone"
+# field, not just the LGA name; see the routing normalization below.
 LGA_ROUTING_MAP = {
-    "Ashfield":     "Inner West DCP 2016 Chapter F",
-    "Marrickville": "Marrickville DCP 2011",
     "Canada Bay":   "canada_bay",
 }
 
@@ -281,9 +280,11 @@ def main():
     by_routing = defaultdict(list)
     for e in verified:
         routing = e.get("dcp_routing", "")
-        # Normalize Canada Bay routing
+        # Normalize Canada Bay routing — zone-dependent: R2 uses Part E
+        # (canada_bay), R3/R4 both use Part F (canada_bay_r3/r4).
         if "canada" in routing.lower() or e.get("lga","").lower() == "city of canada bay":
-            routing = "canada_bay"
+            zone = e.get("expected_zone", "R2")
+            routing = {"R2": "canada_bay", "R3": "canada_bay_r3", "R4": "canada_bay_r4"}.get(zone, "canada_bay")
         by_routing[routing].append(e)
 
     # Override rules file if specified

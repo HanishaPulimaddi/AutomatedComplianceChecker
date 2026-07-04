@@ -1,0 +1,25 @@
+{
+  "clause_label_regex": "^(C\\d+)\\.",
+  "clause_label_type": "control",
+  "objective_label_regex": null,
+  "section_heading_style": "numeric_inline",
+  "section_heading_regex": "^(F\\d+(?:\\.\\d+)*)\\s+(.*)",
+  "part_header_regex": "Part\\s+([A-Z])",
+  "font_heading_min_size_offset": null,
+  "noise_line_patterns": [
+    "^Development Control Plan$",
+    "^Part F$",
+    "^Multi-dwelling Housing, Multi Dwelling Housing \\(Terraces\\), Manor Houses and Residential Flat Buildings$",
+    "^CITY OF CANADA BAY$",
+    "^Page F-\\d+$",
+    "^Version: \\d, Version Date: \\d{2}/\\d{2}/\\d{4}$",
+    "^Document Set ID: \\d+$"
+  ],
+  "clause_label_examples": [
+    "C3.",
+    "C4.",
+    "C5."
+  ],
+  "notes": "The document uses a hierarchical section numbering system starting with 'F' (e.g., F1, F2.1). Controls are labelled with 'C' followed by a number and a period. Objectives are not explicitly labelled in the provided text.",
+  "source_document": "Canada Bay DCP Part F (Multi-dwelling Housing, Terraces, Manor Houses, Residential Flat Buildings)"
+}

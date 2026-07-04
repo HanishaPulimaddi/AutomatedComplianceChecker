@@ -13,9 +13,9 @@ Reads pipeline_manifest.json. For each LGA entry:
 
 Usage:
     python pipeline.py                          # run all LGAs in manifest
-    python pipeline.py --lga Ashfield           # run one LGA
-    python pipeline.py --lga Ashfield --dry-run # chunk + detect only, no extraction
-    python pipeline.py --lga Ashfield --reuse-chunks  # skip re-chunking if cached
+    python pipeline.py --lga "Canada Bay R3"    # run one LGA
+    python pipeline.py --lga "Canada Bay R3" --dry-run # chunk + detect only, no extraction
+    python pipeline.py --lga "Canada Bay R3" --reuse-chunks  # skip re-chunking if cached
 """
 
 import json
@@ -28,8 +28,6 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-sys.path.insert(0, "D:/python_packages")
-
 import fitz
 from dotenv import load_dotenv
 
@@ -37,7 +35,7 @@ load_dotenv()
 
 BASE_DIR   = Path(__file__).resolve().parent
 DATA_DIR   = BASE_DIR / "data"
-CHUNKS_DIR = Path("D:/pipeline_chunks")
+CHUNKS_DIR = DATA_DIR / "pipeline_chunks"
 CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
 
 MODEL_EXTRACT = "gemini-flash-lite-latest"   # rule extraction via Gemini free tier
@@ -78,7 +76,7 @@ def _init_structure_client():
             print("  Structure detection: Gemini Flash (free tier)")
             return
         except ImportError:
-            raise RuntimeError("google-genai package required: pip install --target=D:/python_packages google-genai")
+            raise RuntimeError("google-genai package required: pip install google-genai")
 
     raise RuntimeError(
         "No free model API key found. Set GROQ_API_KEY or GEMINI_API_KEY in .env.\n"
@@ -753,7 +751,7 @@ def _resplit_by_clause(chunks: list[dict], clause_re_str: str | None) -> list[di
 def in_r2_scope(chunk: dict, r2_scope: dict | None) -> bool:
     if r2_scope is None:
         return True
-    part    = chunk.get("part_context", "")
+    part    = chunk.get("part_context", "") + " " + chunk.get("section_path", "")
     include = r2_scope.get("include_parts", [])
     exclude = r2_scope.get("exclude_parts", [])
     def _part_matches(kw: str, part: str) -> bool:
@@ -779,6 +777,19 @@ Extract structured numeric planning rules from the chunk of DCP/LEP text provide
 - Do NOT invent numbers or extract rules about neighbouring properties
 - Do NOT extract site-specific rules naming a particular address or heritage item
 
+## DO NOT FORCE-FIT
+Every parameter in the schema below means a SPECIFIC type of control. A number that is not
+that type of control does not belong in that parameter, even if it is the closest-sounding name.
+Examples of force-fitting to REJECT:
+  - A basement driveway entry clearance height is NOT max_height (max_height = height of the building).
+  - A flood planning level (m AHD) is NOT max_height.
+  - A waste-chute storey-count threshold is NOT max_storeys.
+  - A foreshore public access strip width is NOT rear_setback (rear_setback = dwelling-to-boundary distance).
+  - A bin-storage-room floor area is NOT private_open_space (private_open_space = outdoor amenity space per dwelling).
+  - A tree canopy spread in m² is NOT landscaped_area_pct (landscaped_area_pct = % of site area landscaped).
+If a number's control type has no matching parameter in the schema below, DO NOT extract it at all.
+Skipping a rule is always correct; misfiling it under the wrong parameter is always wrong.
+
 ## CLAUSE LABELS — any format is valid
 The document may use C10, DS3.4, P1, DCP-R1.1, cl 4.3, or any other scheme.
 Use whatever label the document actually uses in source_clause.
@@ -798,10 +809,60 @@ parameter — one of:
   side_fence_height, rear_fence_height,
   parking_spaces_per_dwelling, min_bicycle_spaces,
   max_driveway_width, min_parking_space_length, min_parking_space_width,
-  balcony_rear_setback, building_separation
+  balcony_rear_setback, building_separation,
+
+  adaptable_housing_pct           — % of dwellings in a development required to be adaptable-housing standard. unit=pct
+  min_habitable_floor_level       — flood-affected land only: minimum floor/basement level in metres AHD (Australian Height Datum). unit=m
+  topography_cut_fill_max         — maximum permitted cut or fill alteration to natural ground level. unit=m
+  waste_bin_walking_distance_max  — max walking distance from a dwelling to communal bin storage / kerbside presentation point. unit=m
+  waste_vehicle_clearance_height  — min vertical clearance for waste collection vehicle access (driveway/basement). unit=m
+  waste_vehicle_access_width_min  — min driveway width for waste collection vehicle access. unit=m
+  protected_tree_min_height       — height at/above which a tree is a protected tree. unit=m
+  protected_tree_min_trunk_diameter — trunk diameter at ground level at/above which a tree is protected (even if under the height threshold). unit=mm
+  protected_tree_min_canopy_spread  — canopy spread at/above which a tree is protected regardless of height. unit=m
+  tree_setback_from_dwelling      — min distance a tree must be planted from an approved dwelling/retaining wall. unit=m
+  tree_replacement_ratio          — number of replacement trees required per tree removed. unit=ratio
+  solar_access_hours_min          — min hours of direct sunlight required to neighbours' north-facing windows / private open space (state the reference date/window in conditions[]). unit=hours
+  foreshore_public_access_width   — min width of public access strip required between mean high water mark and a foreshore building. unit=m
+  seawall_height_max              — max height a permitted seawall may protrude above mean high water mark. unit=m
+
+  pool_coping_height_max          — foreshore setback only: max height of a pool/spa edge above natural ground. unit=m
+  fence_exclusion_zone_from_water — foreshore only: distance from mean high water mark within which boundary fences are not permitted. unit=m
+  retaining_wall_height_max       — foreshore only: max retaining wall height. unit=m
+  ramp_crest_level_max_drop       — max drop of a basement/driveway ramp crest below natural ground level within a setback. unit=m
+  driveway_landscape_strip_width_min — min width of landscaped strip between a driveway/access-handle and a side boundary. unit=m
+  outbuilding_floor_area_max      — max total floor area of outbuildings on a lot. unit=m2
+  flood_parking_level_offset      — flood-affected land: required min/max offset of a parking/driveway surface level relative to a named flood level (state which flood level, e.g. 1%AEP or 5%AEP, in conditions[]). unit=m
+  flood_tailwater_level           — reference flood tailwater level from a council flood study table (informational input, not itself a floor-level requirement). unit=m
+  concessional_development_addition_max — max size of a once-only concessional/exempt addition to an existing dwelling (extract both the % and m2 forms as separate rules if both given). unit=pct or m2
+  garage_frontage_occupancy_max   — max % of the site frontage a garage/parking structure may occupy. unit=pct
+  garage_structure_width_max      — max width of a garage or other parking structure (distinct from max_driveway_width, which is the driveway itself). unit=m
+  waste_bin_carting_route_width_min — min width of the bin carting route from bin storage to the collection/holding point. unit=m
+  exempt_tree_species_height_max  — height below which specific listed tree species are exempt from protection (distinct from protected_tree_min_height, the general threshold). unit=m
+  tree_canopy_target_pct          — min % of site area (or LGA) required to be tree canopy — distinct from landscaped_area_pct, which is general soft landscaping. unit=pct
+  hardstand_front_setback_min     — min distance from the front boundary to the dwelling, specifically for the hardstand-parking exception when a garage/carport cannot be sited at side/rear. unit=m
+  secondary_facade_offset         — min setback of a secondary building facade from the primary building facade (not a boundary setback). unit=m
+  secondary_facade_max_width_pct  — max width of a secondary building facade as a % of total site frontage (distinct from secondary_facade_offset, which is a setback distance). unit=pct
+  primary_facade_width_pct        — max width of the primary (front) building facade as a % of total site frontage. unit=pct
+  roof_pitch_min                  — min roof pitch angle. unit=degrees
+  roof_pitch_max                  — max roof pitch angle. unit=degrees
+  max_driveway_width_pct          — max driveway width as a % of the site's frontage width (distinct from max_driveway_width, an absolute distance). unit=pct
+  privacy_sill_height             — min window sill height (floor to sill) required on a side elevation for privacy. unit=m
+  balcony_side_setback            — min setback of an upper-level rear balcony from a side boundary (distinct from side_setback_upper, which covers the whole upper floor, not just balconies). unit=m
+  landscaping_strip_width         — min width of a continuous landscaped strip on the street side of a front fence. unit=m
+  landscaped_area_rear_pct        — min % of the rear yard area required to be landscaped (distinct from landscaped_area_pct, the whole-site figure, and landscaped_area_front_pct). unit=pct
+  pool_coping_boundary_setback_min — min distance from a swimming pool/spa coping to the property boundary (distinct from pool_coping_height_max, a height limit). unit=m
+  dormer_height_max               — max dormer height, base to ridge. unit=m
+  dwelling_massing_offset_max     — max distance one dwelling may project into the rear yard beyond an adjoining dwelling on the same lot (e.g. dual occupancy). unit=m
+  landscape_planting_min_mature_height — required min mature height for new screen/native plantings (not a protection threshold for existing trees). unit=m
+  pathway_boundary_setback        — min distance a pathway or driveway must be from a common/site boundary. unit=m
+  fence_boundary_setback          — min setback of a fence from a boundary (e.g. for sightline/visibility reasons), distinct from fence height parameters. unit=m
+  satellite_dish_height_max       — max height of a satellite dish above ground in a rear yard. unit=m
+  height_plane_ground_tolerance_max — max allowance for one point/side of a building to exceed the height plane due to ground undulation. unit=m
+  deck_patio_height_max           — max height of a ground floor deck/patio above natural ground level. unit=m
 
 value         — number (not string)
-unit          — "m" | "m2" | "mm" | "pct" | "storeys" | "ratio" | "degrees" | "spaces"
+unit          — "m" | "m2" | "mm" | "pct" | "storeys" | "ratio" | "degrees" | "spaces" | "hours"
 operator      — "min" | "max" | "eq"
 zone          — "R2" | "R3" | "all_residential" | "all" | "not_specified"
 dwelling_type — "dwelling_house" | "semi_detached" | "dual_occupancy_attached" |
@@ -1030,13 +1091,144 @@ VALID_PARAMS = {
     "parking_spaces_per_dwelling", "min_bicycle_spaces",
     "max_driveway_width", "min_parking_space_length", "min_parking_space_width",
     "balcony_rear_setback", "building_separation",
+    "adaptable_housing_pct", "min_habitable_floor_level", "topography_cut_fill_max",
+    "waste_bin_walking_distance_max", "waste_vehicle_clearance_height",
+    "waste_vehicle_access_width_min",
+    "protected_tree_min_height", "protected_tree_min_trunk_diameter",
+    "protected_tree_min_canopy_spread", "tree_setback_from_dwelling",
+    "tree_replacement_ratio", "solar_access_hours_min",
+    "foreshore_public_access_width", "seawall_height_max",
+    "pool_coping_height_max", "fence_exclusion_zone_from_water",
+    "retaining_wall_height_max", "ramp_crest_level_max_drop",
+    "driveway_landscape_strip_width_min", "outbuilding_floor_area_max",
+    "flood_parking_level_offset", "flood_tailwater_level",
+    "concessional_development_addition_max", "garage_frontage_occupancy_max",
+    "garage_structure_width_max", "waste_bin_carting_route_width_min",
+    "exempt_tree_species_height_max", "tree_canopy_target_pct",
+    "hardstand_front_setback_min", "secondary_facade_offset", "secondary_facade_max_width_pct",
+    "primary_facade_width_pct", "roof_pitch_min", "roof_pitch_max", "max_driveway_width_pct",
+    "privacy_sill_height", "balcony_side_setback", "landscaping_strip_width",
+    "landscaped_area_rear_pct", "pool_coping_boundary_setback_min",
+    "dormer_height_max", "dwelling_massing_offset_max",
+    "landscape_planting_min_mature_height", "pathway_boundary_setback",
+    "fence_boundary_setback", "satellite_dish_height_max",
+    "height_plane_ground_tolerance_max", "deck_patio_height_max",
+    "upper_level_setback_above_four_storeys", "facade_articulation_zone_depth",
+    "min_floor_to_ceiling_height", "five_dock_town_centre_height_tier_reference",
+    "dwelling_mix_studio_1bed_min_pct", "dwelling_mix_3bed_plus_min_pct",
+    "design_excellence_height_trigger", "competitive_design_process_height_trigger",
+    "acid_sulfate_soils_class_reference", "affordable_housing_levy_pct",
+    "residential_exclusion_buffer_from_road",
+    "heritage_cut_fill_max", "heritage_pavilion_addition_separation_min",
+    "communal_open_space_min_pct", "communal_open_space_solar_access_pct",
+    "communal_open_space_min_area_per_dwelling", "communal_open_space_min_dimension",
+    "deep_soil_zone_min_pct", "deep_soil_zone_min_dimension",
+    "adg_boundary_separation_habitable", "adg_boundary_separation_non_habitable",
+    "apartment_solar_access_pct_min", "apartment_no_solar_access_pct_max",
+    "natural_cross_ventilation_pct_min", "cross_through_apartment_depth_max",
+    "apartment_min_internal_area", "habitable_room_window_glass_area_min_pct",
+    "open_plan_habitable_room_depth_max", "bedroom_min_area", "bedroom_min_dimension",
+    "living_room_min_width", "cross_through_apartment_width_min",
+    "adg_balcony_min_area", "adg_balcony_min_depth",
+    "adg_ground_floor_pos_min_area", "adg_ground_floor_pos_min_depth",
+    "apartment_storage_min_volume",
+    "secondary_dwelling_max_floor_area", "secondary_dwelling_min_site_area",
+    "secondary_dwelling_complying_dev_min_lot_size", "adg_prevails_over_dcp_matters",
+    "tod_max_height_floor_rfb", "tod_max_height_floor_ilu_shoptop", "tod_max_fsr_floor",
+    "tod_min_lot_width", "tod_affordable_housing_pct",
+    "tod_affordable_housing_parking_1bed", "tod_affordable_housing_parking_2bed",
+    "tod_affordable_housing_parking_3bed_plus",
+    # Codes SEPP 2008 Part 3 (Housing Code) — complying development pathway,
+    # kept under a "cdc_" prefix and never merged with DA/DCP-pathway params
+    # (e.g. cdc_side_setback_min is a different standard to side_setback_ground,
+    # from a different consent pathway with no discretion to vary).
+    "cdc_articulation_zone_max_depth", "cdc_articulation_zone_max_element_area_pct",
+    "cdc_attached_balcony_max_area_elevated", "cdc_attached_balcony_max_floor_level",
+    "cdc_attached_garage_min_width_for_front_access", "cdc_basement_max_area",
+    "cdc_battle_axe_front_setback_min", "cdc_battle_axe_min_dimensions",
+    "cdc_boundary_wall_max_height", "cdc_boundary_wall_max_length",
+    "cdc_classified_road_setback_min", "cdc_corner_lot_min_primary_frontage",
+    "cdc_detached_boundary_wall_max_height", "cdc_detached_deck_max_floor_level",
+    "cdc_detached_max_gfa", "cdc_detached_max_height",
+    "cdc_detached_parallel_road_setback_min", "cdc_detached_rear_setback_min",
+    "cdc_detached_side_setback_min", "cdc_detached_studio_max_gfa",
+    "cdc_detached_studio_max_height", "cdc_detached_studio_setback_min",
+    "cdc_excavation_max_depth", "cdc_excavation_max_depth_acid_sulfate_or_waterbody",
+    "cdc_fence_max_height_behind_building_line", "cdc_fence_max_height_forward_of_building_line",
+    "cdc_fill_max_height_dwelling", "cdc_fill_max_height_other",
+    "cdc_garage_carport_secondary_road_setback_min", "cdc_garage_carport_setback_min",
+    "cdc_landscaped_area_min_dimension", "cdc_max_building_height",
+    "cdc_max_garage_door_width", "cdc_max_gfa", "cdc_max_gfa_pct_plus_constant_reference",
+    "cdc_min_landscaped_area_pct", "cdc_min_lot_area", "cdc_min_lot_width",
+    "cdc_min_parking_spaces", "cdc_min_principal_pos_area",
+    "cdc_parallel_road_setback_min", "cdc_parking_setback_primary_road_min",
+    "cdc_pool_boundary_setback_min", "cdc_pool_coping_max_height",
+    "cdc_pool_decking_max_height", "cdc_pool_pump_boundary_setback_min",
+    "cdc_primary_road_setback_min", "cdc_principal_pos_min_dimension",
+    "cdc_privacy_screen_height_min", "cdc_privacy_screen_trigger_setback",
+    "cdc_protected_tree_setback_min", "cdc_public_reserve_setback_min",
+    "cdc_rear_setback_min", "cdc_retaining_wall_min_separation",
+    "cdc_secondary_road_articulation_min_length_pct", "cdc_secondary_road_setback_min",
+    "cdc_secondary_road_window_min_area", "cdc_side_setback_min",
+    "cdc_wall_within_boundary_trigger",
+    # Codes SEPP 2008 Part 3B (Low Rise Housing Diversity Code) — dual
+    # occupancies, manor houses and multi dwelling housing (terraces) under
+    # the same CDC pathway; "cdc3b_" prefix keeps it distinct from Part 3's
+    # dwelling-house-only "cdc_" params (e.g. side setback minimums differ).
+    "cdc3b_articulation_zone_max_depth_primary", "cdc3b_articulation_zone_max_depth_secondary",
+    "cdc3b_articulation_zone_max_element_area_pct", "cdc3b_attached_balcony_max_area_elevated",
+    "cdc3b_attached_balcony_max_floor_level", "cdc3b_attached_balcony_setback_min",
+    "cdc3b_classified_road_setback_min", "cdc3b_detached_boundary_wall_max_height",
+    "cdc3b_detached_boundary_wall_max_length", "cdc3b_detached_cabana_shed_rear_setback_min",
+    "cdc3b_detached_deck_max_floor_level", "cdc3b_detached_deck_rear_setback_min",
+    "cdc3b_detached_max_gfa_side_by_side", "cdc3b_detached_max_gfa_stacked",
+    "cdc3b_detached_max_height", "cdc3b_detached_min_lot_area", "cdc3b_detached_min_lot_width",
+    "cdc3b_detached_parallel_road_setback_min", "cdc3b_detached_rear_setback_min_side_by_side",
+    "cdc3b_detached_rear_setback_min_stacked", "cdc3b_detached_side_setback_min",
+    "cdc3b_detached_studio_max_gfa", "cdc3b_detached_studio_max_height",
+    "cdc3b_detached_studio_min_separation_from_dwelling", "cdc3b_detached_studio_rear_setback_min",
+    "cdc3b_detached_studio_side_setback_min", "cdc3b_excavation_max_depth",
+    "cdc3b_excavation_max_depth_acid_sulfate_or_waterbody", "cdc3b_fence_max_height_behind_building_line",
+    "cdc3b_fence_max_height_forward_of_building_line", "cdc3b_fill_max_height_dual_occ_manor",
+    "cdc3b_fill_max_height_other", "cdc3b_garage_carport_rear_setback_min",
+    "cdc3b_garage_carport_secondary_road_setback_min", "cdc3b_garage_min_separation_from_dwelling",
+    "cdc3b_geotechnical_report_trigger_depth", "cdc3b_manor_house_faces_road",
+    "cdc3b_max_building_height", "cdc3b_max_garage_door_width", "cdc3b_max_garage_door_width_primary",
+    "cdc3b_max_garage_door_width_secondary", "cdc3b_max_gfa", "cdc3b_max_gfa_pct",
+    "cdc3b_max_gfa_pct_plus_constant", "cdc3b_max_gfa_pct_plus_constant_reference",
+    "cdc3b_min_dwelling_separation", "cdc3b_min_dwelling_width",
+    "cdc3b_min_landscaped_area_pct_minus_constant", "cdc3b_min_landscaped_area_pct_subdivided",
+    "cdc3b_min_landscaped_area_pct_unsubdivided", "cdc3b_min_lot_area", "cdc3b_min_lot_width",
+    "cdc3b_min_lot_width_rear_access", "cdc3b_min_parking_spaces_per_dwelling",
+    "cdc3b_min_terrace_width", "cdc3b_parallel_road_setback_min", "cdc3b_parking_setback_min",
+    "cdc3b_pool_boundary_setback_min", "cdc3b_pool_coping_max_height", "cdc3b_pool_max_fill_height",
+    "cdc3b_primary_road_setback_min", "cdc3b_principal_pos_min_area", "cdc3b_protected_tree_setback_min",
+    "cdc3b_public_reserve_setback_min", "cdc3b_rear_setback_min", "cdc3b_retaining_wall_landscape_strip_min",
+    "cdc3b_retaining_wall_min_separation", "cdc3b_secondary_road_setback_min", "cdc3b_side_setback_min",
+    # Canada Bay DCP Part D (Boarding Houses) and Part J (Child Care Centres)
+    "boarding_room_min_area_single", "boarding_room_min_area_double", "boarding_room_max_area",
+    "boarding_room_max_occupancy", "boarding_house_kitchen_min_area",
+    "boarding_house_laundry_circulation_min_width", "boarding_house_social_impact_assessment_trigger",
+    "boarding_house_bicycle_parking_per_lodger",
+    "childcare_parking_spaces_per_licensed_places", "childcare_max_sign_area", "childcare_setback_note",
 }
-VALID_UNITS = {"m", "m2", "mm", "pct", "storeys", "ratio", "degrees", "spaces"}
+VALID_UNITS = {"m", "m2", "m3", "mm", "pct", "storeys", "ratio", "degrees", "spaces", "hours", "class", "count"}
 VALID_OPS   = {"min", "max", "eq"}
 VALID_DWT   = {
     "dwelling_house", "dual_occupancy_attached", "dual_occupancy_detached",
     "semi_detached", "attached_dwelling", "secondary_dwelling",
     "outbuilding", "accessory_structure", "all",
+    # Codes SEPP 2008 Part 3B (Low Rise Housing Diversity Code) building
+    # types — kept distinct from dual_occupancy_attached/detached above
+    # since those describe physical joinery (DCP sense), not the SEPP's
+    # side-by-side vs stacked-unit distinction.
+    "manor_house", "dual_occupancy_stacked", "multi_dwelling_terraces",
+    # Canada Bay DCP Part F's own dwelling-type category, distinct from
+    # multi_dwelling_terraces (the Codes SEPP/Part 3B building type).
+    "multi_dwelling_housing",
+    # Canada Bay DCP Part D — boarding houses (Housing SEPP-driven; permitted
+    # in R1/R3/R4/E1/MU1, not R2 except under a narrow walking-distance test).
+    "boarding_house", "child_care_centre",
 }
 
 

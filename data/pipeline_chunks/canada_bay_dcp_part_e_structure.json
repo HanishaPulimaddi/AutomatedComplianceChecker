@@ -1,0 +1,25 @@
+{
+  "clause_label_regex": "^(C\\d+)\\.",
+  "clause_label_type": "control",
+  "objective_label_regex": "^(O\\d+)\\.",
+  "section_heading_style": "numeric_inline",
+  "section_heading_regex": "^(E\\d+(?:\\.\\d+)?)\\s+(.*)",
+  "part_header_regex": "Part\\s+([A-Z])",
+  "font_heading_min_size_offset": null,
+  "noise_line_patterns": [
+    "^Development Control Plan$",
+    "^Part E$",
+    "^Single Dwellings, Semi-Detached Dwellings, Dual Occupancies and Secondary Dwellings$",
+    "^CITY OF CANADA BAY$",
+    "^Page E-\\d+$",
+    "^Version: \\d, Version Date: \\d{2}/\\d{2}/\\d{4}$",
+    "^Document Set ID: \\d+$"
+  ],
+  "clause_label_examples": [
+    "C1",
+    "C10",
+    "C18"
+  ],
+  "notes": "The document uses 'E' series numbering for sections (e.g., E2.1). Objectives are labelled O1-O5 and Controls are labelled C1-C18. Boilerplate headers and footers appear on every page.",
+  "source_document": "Canada Bay DCP Part E (Single and Semi-Detached Dwellings)"
+}

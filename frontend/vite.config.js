@@ -9,6 +9,9 @@ export default defineConfig({
       "/docs": "http://localhost:8000",
       "/envelope": "http://localhost:8000",
       "/site": "http://localhost:8000",
+      "/cdc-eligibility": "http://localhost:8000",
+      "/address-suggestions": "http://localhost:8000",
+      "/grasshopper-plugin": "http://localhost:8000",
     },
   },
 });

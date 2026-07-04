@@ -1,0 +1,332 @@
+{
+  "source_document": "Canada Bay DCP Part K (Special Precincts)",
+  "source_pdf": "canada-bay-dcp-part-k-special-precincts.pdf",
+  "note": "Part K covers 24 precincts across 474 pages. 3 are extracted here as PROOF OF CONCEPT: Abbotsford Cove and Bibby Street (small, self-contained sites), plus Rhodes East (a genuinely important precinct \u2014 see its own boundary_detection note for why). The remaining 21 precincts (including Rhodes West, ~90 pages) were NOT extracted. ALL entries here are reference/citation-only \u2014 NOT wired into /envelope and NOT auto-applied to any address, because unlike zone/height/heritage, there is no live NSW spatial layer that can confirm whether a given lot actually falls inside a named Special Precinct boundary. A human must confirm precinct membership manually before relying on any control listed here.",
+  "precincts": [
+    {
+      "precinct_name": "Abbotsford Cove",
+      "clause_prefix": "K2",
+      "location_description": "Bounded by Great North Road, Blackwall Point Road, Walton Crescent and Melrose Crescent, Abbotsford. Includes Abbotsford House.",
+      "source_pages": "K-3 to K-6",
+      "boundary_detection": "NOT DETERMINABLE FROM ADDRESS ALONE. The precinct boundary exists only as a hand-drawn outline on an aerial photo in the source document \u2014 there is no queryable NSW spatial layer for Special Precincts (checked: EPI_Primary_Planning_Layers has Heritage/FSR/Zoning/Lot Size/Height/Land Application only, no Precinct layer). A human must confirm whether a given lot actually falls inside this precinct before applying anything below.",
+      "controls": [
+        {
+          "description": "Max building height, Great North Road Precinct sub-area",
+          "value": 7.5,
+          "unit": "m",
+          "clause": "K2.2 C2-C3"
+        },
+        {
+          "description": "Max building height, Blackwall Point Road Precinct sub-area",
+          "value": 11.0,
+          "unit": "m",
+          "clause": "K2.2 C2, C4"
+        },
+        {
+          "description": "Max building height, Melrose Crescent Precinct sub-area",
+          "value": 16.5,
+          "unit": "m",
+          "clause": "K2.2 C2, C6"
+        },
+        {
+          "description": "Max building height, Walton Crescent Precinct sub-area",
+          "value": 11.0,
+          "unit": "m",
+          "clause": "K2.2 C8"
+        },
+        {
+          "description": "Max building height, Abbotsford House Precinct sub-area",
+          "value": 7.5,
+          "unit": "m",
+          "clause": "K2.2 C10"
+        },
+        {
+          "description": "Max structure height, Open Space Precinct sub-area",
+          "value": 3.6,
+          "unit": "m",
+          "clause": "K2.2 C11"
+        },
+        {
+          "description": "Foreshore Building Line",
+          "value": 20.0,
+          "unit": "m",
+          "clause": "K2.2 C13"
+        },
+        {
+          "description": "Street setback, Blackwall Point Road / Walton Crescent Precincts",
+          "value": 9.0,
+          "unit": "m",
+          "clause": "K2.2 C5, C14"
+        },
+        {
+          "description": "Maximum site coverage (whole site)",
+          "value": 30,
+          "unit": "pct",
+          "clause": "K2.2 C12, C17"
+        },
+        {
+          "description": "45-degree building envelope control applies where Melrose Crescent / Walton Crescent Precincts adjoin the Open Space Precinct (angle measured from a 2.75m wall height base)",
+          "value": 45,
+          "unit": "degrees",
+          "clause": "K2.2 C7, C9, C16"
+        }
+      ]
+    },
+    {
+      "precinct_name": "Bibby Street",
+      "clause_prefix": "K3",
+      "location_description": "Former industrial site bound by Bibby Street, Blackwall Point Road and Burns Crescent, Chiswick \u2014 6 sub-sites (Site 1-6).",
+      "source_pages": "K-7 to K-8",
+      "boundary_detection": "NOT DETERMINABLE FROM ADDRESS ALONE (same limitation as Abbotsford Cove). The specific storey/setback values below are ALSO only shown in a figure (Figure K3-4/K3-5), keyed to 'Site 1' through 'Site 6' by position on a diagram \u2014 attributing an exact number to an exact sub-site from plain text extraction is not reliable, so only the overall range is captured here, not a per-site breakdown.",
+      "controls": [
+        {
+          "description": "Maximum storeys across the 6 sub-sites, ranges from 2 to 5 storeys stepping down toward the north-east (exact sub-site attribution requires reading Figure K3-4 directly)",
+          "value": null,
+          "unit": "storeys",
+          "clause": "K3.1 C1, Figure K3-4",
+          "range_text": "2-5 storeys"
+        },
+        {
+          "description": "Minimum boundary setbacks shown in Figure K3-5, ranging from 4.5m to 18m depending on boundary and sub-site (exact attribution requires reading the figure directly)",
+          "value": null,
+          "unit": "m",
+          "clause": "K3.1 C2, Figure K3-5",
+          "range_text": "4.5m-18m"
+        }
+      ]
+    },
+    {
+      "precinct_name": "Rhodes East",
+      "clause_prefix": "K16",
+      "location_description": "A large priority urban renewal precinct covering much of the Rhodes peninsula east of the railway line, City of Canada Bay. Effectively its own standalone DCP (\"Rhodes East Development Control Plan\") layered on top of the base Canada Bay DCP.",
+      "source_pages": "K-99 to K-186",
+      "boundary_detection": "NOT DETERMINABLE FROM ADDRESS ALONE \u2014 same core limitation as every other Part K precinct: no live NSW spatial layer marks the Rhodes East boundary. HOWEVER: unlike Bibby Street, the values below (building separation, podium/tower design, floor-to-ceiling heights) are stated in clear prose/tables, not locked inside a diagram, so they are reliably extracted once a human confirms the address is actually within Rhodes East. Max building HEIGHT and FSR are explicitly NOT included here because Rhodes East's own text says these come from the LEP 'Height of Building' map \u2014 the SAME live NSW layer /envelope already queries for every address \u2014 so that number is very likely already correct without any of this reference data.",
+      "controls": [
+        {
+          "description": "Building-to-building separation for towers 15-20 storeys (exceeds the general ADG figure of 12m for 9+ storeys, which would UNDER-state the real requirement here)",
+          "value": 24,
+          "unit": "m",
+          "clause": "K16.6 Tower and Podium Design C1"
+        },
+        {
+          "description": "Building-to-building separation for towers above 20 storeys (exceeds the general ADG figure of 12m for 9+ storeys, which would UNDER-state the real requirement here)",
+          "value": 40,
+          "unit": "m",
+          "clause": "K16.6 Tower and Podium Design C1"
+        },
+        {
+          "description": "Maximum gross floor area of a residential tower floorplate above podium level",
+          "value": 750,
+          "unit": "m2",
+          "clause": "K16.6 Tower and Podium Design C2"
+        },
+        {
+          "description": "Height differential required between adjacent towers, both above 20 storeys",
+          "value": 5,
+          "unit": "storeys",
+          "clause": "K16.6 Tower and Podium Design C3"
+        },
+        {
+          "description": "Minimum podium height",
+          "value": "14-16",
+          "unit": "m",
+          "clause": "K16.6 Tower and Podium Design C4"
+        },
+        {
+          "description": "Ground floor setback (tower and podium typology)",
+          "value": 3,
+          "unit": "m",
+          "clause": "K16.6 Tower and Podium Design C5(a)"
+        },
+        {
+          "description": "Podium-to-tower setback",
+          "value": 4,
+          "unit": "m",
+          "clause": "K16.6 Tower and Podium Design C5(b)"
+        },
+        {
+          "description": "Maximum proportion of a tower frontage permitted to extend down to ground level along a street/public space",
+          "value": 33,
+          "unit": "pct",
+          "clause": "K16.6 Tower and Podium Design C5(c)"
+        },
+        {
+          "description": "Minimum floor-to-ceiling height, retail/commercial (also applies to ALL ground floors regardless of use)",
+          "value": 3.6,
+          "unit": "m",
+          "clause": "K16.6 Floor to ceiling heights C6-C7"
+        },
+        {
+          "description": "Minimum floor-to-ceiling height, community uses",
+          "value": 3.3,
+          "unit": "m",
+          "clause": "K16.6 Floor to ceiling heights C6"
+        },
+        {
+          "description": "Minimum floor-to-ceiling height, residential/terraces",
+          "value": 3.1,
+          "unit": "m",
+          "clause": "K16.6 Floor to ceiling heights C6"
+        },
+        {
+          "description": "Above-ground parking floor-to-ceiling height",
+          "value": null,
+          "unit": "n/a",
+          "clause": "K16.6 Floor to ceiling heights C6",
+          "note": "Not permitted at all, not a height figure"
+        },
+        {
+          "description": "Maximum ground floor level above footpath, residential uses",
+          "value": 1.0,
+          "unit": "m",
+          "clause": "K16.6 Floor to ceiling heights C8"
+        },
+        {
+          "description": "Maximum ground floor level above footpath, retail/commercial uses",
+          "value": 0.4,
+          "unit": "m",
+          "clause": "K16.6 Floor to ceiling heights C8"
+        },
+        {
+          "description": "Maximum building depth for residential development NOT covered by the ADG (2-3 storey terraces, walk-ups, multiplexes) unless courtyard design demonstrates adequate ventilation/solar access",
+          "value": 18,
+          "unit": "m",
+          "clause": "K16.6 Residential uses not covered by ADG C9"
+        },
+        {
+          "description": "Minimum ground-floor dwelling private open space (calculated as bedroom count x 4m2)",
+          "value": 4,
+          "unit": "m2 per bedroom",
+          "clause": "K16.6 Residential uses not covered by ADG C10"
+        },
+        {
+          "description": "Master bedroom minimum area (for dwellings not covered by ADG)",
+          "value": 10,
+          "unit": "m2",
+          "clause": "K16.6 Residential uses not covered by ADG C14"
+        },
+        {
+          "description": "Other bedrooms minimum area (for dwellings not covered by ADG)",
+          "value": 9,
+          "unit": "m2",
+          "clause": "K16.6 Residential uses not covered by ADG C14"
+        },
+        {
+          "description": "Minimum affordable housing contribution, in areas identified on the precinct's Affordable Housing Plan (Figure K16-22) \u2014 WHICH areas is figure-dependent, but the percentage itself is clearly stated",
+          "value": 5,
+          "unit": "pct",
+          "clause": "K16.6 Affordable housing C16"
+        },
+        {
+          "description": "Native species minimum share of the landscape plant schedule",
+          "value": 50,
+          "unit": "pct",
+          "clause": "K16.5 C17"
+        },
+        {
+          "description": "McIlwaine Park (turfed area): no additional overshadowing from new development",
+          "value": null,
+          "unit": "time_window",
+          "clause": "K16.5 C11",
+          "note": "8:00am-2:00pm on Winter Solstice (21 June)"
+        },
+        {
+          "description": "McIlwaine Park (general), Bray's Bay, King George Reserve, Uhrs Reserve: no additional overshadowing from new development",
+          "value": null,
+          "unit": "time_window",
+          "clause": "K16.5 C11",
+          "note": "8:30am-12:30pm on Winter Solstice"
+        },
+        {
+          "description": "Foreshore Park (Leeds Street Character Area): no overshadowing in the Primary Zone",
+          "value": null,
+          "unit": "time_window",
+          "clause": "K16.5 C13",
+          "note": "8:30am-12:30pm on Winter Solstice; max 50% overshadowing permitted after 12:30pm"
+        }
+      ]
+    }
+  ],
+  "not_yet_extracted_precincts": [
+    {
+      "name": "Breakfast Point",
+      "pages": "K-9 to K-48"
+    },
+    {
+      "name": "Cape Cabarita",
+      "pages": "K-49 to K-56"
+    },
+    {
+      "name": "25 George Street North Strathfield",
+      "pages": "K-57 to K-60"
+    },
+    {
+      "name": "Edgewood and Kendall Inlet (former Dulux site)",
+      "pages": "K-61 to K-65"
+    },
+    {
+      "name": "27 George Street North Strathfield",
+      "pages": "K-66 to K-69"
+    },
+    {
+      "name": "186 Great North Road, Five Dock",
+      "pages": "K-70 to K-75"
+    },
+    {
+      "name": "2A Hythe Street, Drummoyne",
+      "pages": "K-76 to K-79"
+    },
+    {
+      "name": "Kings Bay (former Hycraft site), Five Dock",
+      "pages": "K-80 to K-83"
+    },
+    {
+      "name": "Liberty Grove",
+      "pages": "K-84 to K-86"
+    },
+    {
+      "name": "Mortlake Point",
+      "pages": "K-87 to K-90"
+    },
+    {
+      "name": "Pelican Point, Pelican Quays and Philips Landing, Concord",
+      "pages": "K-91 to K-93"
+    },
+    {
+      "name": "Rhodes Corporate Park",
+      "pages": "K-94 to K-98"
+    },
+    {
+      "name": "Rhodes West",
+      "pages": "K-187 to K-276"
+    },
+    {
+      "name": "Sydney Wire Mill site, Chiswick",
+      "pages": "K-277 to K-281"
+    },
+    {
+      "name": "Tuscany Court",
+      "pages": "K-282 to K-286"
+    },
+    {
+      "name": "Kings Bay (PRCUTS)",
+      "pages": "K-287 to K-340"
+    },
+    {
+      "name": "Burwood Concord (PRCUTS)",
+      "pages": "K-341 to K-392"
+    },
+    {
+      "name": "Homebush North (PRCUTS)",
+      "pages": "K-393 to K-426"
+    },
+    {
+      "name": "160 Burwood Rd, Concord (former Bushells Factory)",
+      "pages": "K-427 to K-456"
+    },
+    {
+      "name": "1 King Street, Concord West",
+      "pages": "K-457 to end"
+    }
+  ]
+}

@@ -12,7 +12,7 @@ For each pending address, shows every rule and lets you:
 Usage:
     python verify_ground_truth.py
     python verify_ground_truth.py --all        # include already-verified addresses
-    python verify_ground_truth.py --lga Ashfield
+    python verify_ground_truth.py --lga "Canada Bay"
 """
 
 import json
@@ -186,7 +186,7 @@ def verify_address(entry, idx, total):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--all",  action="store_true", help="Include already-verified addresses")
-    parser.add_argument("--lga",  default="",          help="Filter to one LGA (e.g. Ashfield)")
+    parser.add_argument("--lga",  default="",          help="Filter to one LGA (e.g. Canada Bay)")
     args = parser.parse_args()
 
     data = json.loads(GT_PATH.read_text(encoding="utf-8"))

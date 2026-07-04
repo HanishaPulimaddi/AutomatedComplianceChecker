@@ -10,6 +10,25 @@ function sentenceCase(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
+// Known acronyms that should stay fully upper-case rather than being
+// title-cased word-by-word (e.g. "adg_balcony_min_area" should read
+// "ADG Balcony Min Area", not "Adg Balcony Min Area").
+const PARAM_LABEL_ACRONYMS = new Set([
+  "adg", "cdc", "cdc3b", "tod", "fsr", "gfa", "sepp", "dcp", "lep", "pos",
+]);
+
+// Fallback formatter for any parameter without a manually curated entry in
+// PARAM_LABELS below — guarantees every control name is displayed the same
+// way (Title Case, spaces, no underscores) instead of the raw internal
+// name, which is inconsistent by construction (parameter names get added
+// over time by whoever built that extraction, not to a single style guide).
+function formatParamLabel(param) {
+  return param
+    .split("_")
+    .map((word) => (PARAM_LABEL_ACRONYMS.has(word) ? word.toUpperCase() : sentenceCase(word)))
+    .join(" ");
+}
+
 function polygonAreaSqm(geoJsonCoords) {
   const ring = geoJsonCoords[0]; // [[lng, lat], ...]
   if (!ring || ring.length < 3) return 0;
@@ -89,10 +108,23 @@ const GROUPS = [
 
 const EXAMPLE_ADDRESSES = [
   "35 Connecticut Avenue Five Dock 2046",
-  "24 Calvert Street Marrickville 2204",
-  "15 Lackey Street Summer Hill 2130",
-  "36 Trafalgar Street Stanmore 2048",
+  "110 Correys Avenue Concord 2137",
+  "10 Wrights Road Drummoyne 2047",
+  "15 Gauthorpe Street Rhodes NSW 2138",
 ];
+
+// In local dev, this is empty — every fetch() call below is a relative path
+// like "/envelope", and vite.config.js's proxy forwards it to the backend
+// on localhost:8000, which is why you see "localhost" in the browser today.
+// That proxy only exists in the dev server; it does NOT exist once this is
+// built and deployed. If the frontend and backend end up on two different
+// domains in production (e.g. frontend on Vercel, backend on a separate
+// host — likely, since this backend's dependencies, shapely/numpy/PyMuPDF,
+// don't fit Vercel's serverless model well), every relative fetch AND every
+// PDF link would silently try to hit the FRONTEND's own domain instead of
+// the backend, and 404. Setting VITE_API_BASE_URL at build time (e.g. to
+// "https://your-backend.onrender.com") fixes this for both.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
 
 /* ── map helper ── */
 
@@ -113,20 +145,52 @@ export default function App() {
   const [error, setError]           = useState(null);
   const [activeRule, setActiveRule] = useState(null);
   const [mapMode, setMapMode]       = useState("satellite"); // "satellite" | "plan"
+  const [suggestions, setSuggestions]     = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightIndex, setHighlightIndex]   = useState(-1);
   const inputRef = useRef(null);
+  const suggestSeq = useRef(0); // guards against an out-of-order late response overwriting a newer one
 
-  async function handleSubmit(e) {
+  // Autocomplete-as-you-type: most people don't type a full, correctly
+  // formatted address, so this asks the backend (which forwards to the same
+  // geocoder /envelope uses) for ranked suggestions on every keystroke,
+  // debounced so it's not one network call per character.
+  useEffect(() => {
+    if (!address.trim() || address.trim().length < 3) {
+      setSuggestions([]);
+      return;
+    }
+    const seq = ++suggestSeq.current;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/address-suggestions?q=${encodeURIComponent(address)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (seq === suggestSeq.current) {
+          setSuggestions(data.suggestions ?? []);
+          setHighlightIndex(-1);
+        }
+      } catch {
+        // Suggestions are a convenience — a failed lookup just means no dropdown, not an error.
+      }
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [address]);
+
+  async function handleSubmit(e, overrideAddress) {
     e?.preventDefault();
-    if (!address.trim()) return;
+    const toSearch = overrideAddress ?? address;
+    if (!toSearch.trim()) return;
+    setShowSuggestions(false);
     setLoading(true);
     setError(null);
     setResult(null);
     setActiveRule(null);
     try {
-      const res = await fetch("/envelope", {
+      const res = await fetch(`${API_BASE}/envelope`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address: address.trim() }),
+        body: JSON.stringify({ address: toSearch.trim() }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -140,9 +204,33 @@ export default function App() {
     }
   }
 
+  function selectSuggestion(text) {
+    setAddress(text);
+    setSuggestions([]);
+    setShowSuggestions(false);
+    handleSubmit(null, text);
+  }
+
+  function handleInputKeyDown(e) {
+    if (!showSuggestions || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setHighlightIndex((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setHighlightIndex((i) => (i - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === "Enter" && highlightIndex >= 0) {
+      e.preventDefault();
+      selectSuggestion(suggestions[highlightIndex]);
+    } else if (e.key === "Escape") {
+      setShowSuggestions(false);
+    }
+  }
+
   function handleExample() {
     const ex = EXAMPLE_ADDRESSES[Math.floor(Math.random() * EXAMPLE_ADDRESSES.length)];
     setAddress(ex);
+    setShowSuggestions(false);
     setTimeout(() => inputRef.current?.focus(), 0);
   }
 
@@ -189,35 +277,63 @@ export default function App() {
           </div>
           <span className="brand-name">PlanCheck</span>
           <div className="brand-divider" aria-hidden="true" />
-          <span className="brand-tag">Sydney · R2</span>
+          <span className="brand-tag">Canada Bay · R1–R4</span>
         </div>
 
         <form onSubmit={handleSubmit} className="search-form" role="search" aria-label="Address search">
-          <div className="search-wrap">
+          <div className="search-wrap" style={{ position: "relative" }}>
             <svg className="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
               <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/>
             </svg>
             <input
               ref={inputRef}
               value={address}
-              onChange={(e) => setAddress(e.target.value)}
-              placeholder="Enter a Sydney address — e.g. 35 Connecticut Ave Five Dock"
+              onChange={(e) => { setAddress(e.target.value); setShowSuggestions(true); }}
+              onFocus={() => setShowSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+              onKeyDown={handleInputKeyDown}
+              placeholder="Enter a Canada Bay address — e.g. 35 Connecticut Ave Five Dock"
               className="search-input"
               disabled={loading}
-              autoComplete="street-address"
-              aria-label="Sydney address"
+              autoComplete="off"
+              aria-label="Canada Bay address"
+              aria-autocomplete="list"
+              aria-expanded={showSuggestions && suggestions.length > 0}
             />
             {address && (
               <button
                 type="button"
                 className="clear-btn"
-                onClick={() => { setAddress(""); inputRef.current?.focus(); }}
+                onClick={() => { setAddress(""); setSuggestions([]); inputRef.current?.focus(); }}
                 aria-label="Clear address"
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
                   <path d="M18 6 6 18M6 6l12 12" />
                 </svg>
               </button>
+            )}
+            {showSuggestions && suggestions.length > 0 && (
+              <ul className="address-suggestions" role="listbox">
+                {suggestions.map((s, i) => (
+                  <li
+                    key={s}
+                    role="option"
+                    aria-selected={i === highlightIndex}
+                    className={`address-suggestion-item${i === highlightIndex ? " address-suggestion-item--active" : ""}`}
+                    onMouseDown={() => selectSuggestion(s)}
+                    onMouseEnter={() => setHighlightIndex(i)}
+                  >
+                    {s}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {showSuggestions && suggestions.length === 0 && address.trim().length >= 3 && !/^\d/.test(address.trim()) && (
+              <ul className="address-suggestions" role="listbox">
+                <li className="address-suggestion-item address-suggestion-item--hint">
+                  No address match yet — try adding the house number, e.g. "5 {address.trim()}"
+                </li>
+              </ul>
             )}
           </div>
           <button type="submit" disabled={loading || !address.trim()} className="submit-btn">
@@ -327,14 +443,28 @@ export default function App() {
               <span className="gh-footer-sub">Model the buildable envelope directly in Rhino</span>
             </div>
           </div>
-          <a href="#" className="gh-download-btn" onClick={(e) => e.preventDefault()}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-              <polyline points="7 10 12 15 17 10"/>
-              <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-            Download Plugin
-          </a>
+          <div className="gh-footer-actions">
+            {/* A browser can't detect whether Rhino/Grasshopper is already
+                installed on someone's machine (no web API exposes that), so
+                both options are shown — the visitor picks based on what they
+                already have. */}
+            <a
+              href="https://www.rhino3d.com/download/"
+              target="_blank"
+              rel="noreferrer"
+              className="gh-get-rhino-link"
+            >
+              Don't have Rhino? Get it here (Grasshopper's included) ↗
+            </a>
+            <a href={`${API_BASE}/grasshopper-plugin`} className="gh-download-btn" download>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Download Plugin
+            </a>
+          </div>
         </div>
       </footer>
     </div>
@@ -616,9 +746,9 @@ function EmptyState({ onExample }) {
           <path d="M7 8h2v6H7zM11 10h2v4h-2zM15 6h2v8h-2z"/>
         </svg>
       </div>
-      <h2 className="empty-title">Check any R2 address</h2>
+      <h2 className="empty-title">Check any residential address</h2>
       <p className="empty-body">
-        Enter a residential address in <strong>Canada Bay</strong> or <strong>Inner West</strong> to
+        Enter a residential address in <strong>Canada Bay</strong> to
         instantly retrieve all DCP development controls and compute the buildable envelope.
       </p>
       <button className="example-btn" onClick={onExample}>
@@ -674,6 +804,11 @@ function ResultPanel({ result, metrics, activeRule, onRuleClick }) {
   const rules = result.rules_applied ?? [];
   const lga   = result.lga || result.council || null;
 
+  const heightOrFsrRule = rules.find(
+    (r) => (r.parameter === "fsr" || r.parameter === "max_height") &&
+           (r.conditions ?? []).some((c) => c.toLowerCase().includes("exceptions to development standards") || c.toLowerCase().includes("exceeds this"))
+  );
+
   return (
     <div className="result-panel">
       <div className="address-card">
@@ -687,6 +822,11 @@ function ResultPanel({ result, metrics, activeRule, onRuleClick }) {
         <div className="meta-row">
           <span className="zone-badge">Zone {result.zone}</span>
           {lga && <span className="lga-badge">{lga}</span>}
+          {result.heritage && (
+            <span className="heritage-badge" title={result.heritage.name || "Heritage listed"}>
+              🏛 Heritage{result.heritage.category ? ` — ${result.heritage.category}` : ""}
+            </span>
+          )}
           <span className="rule-count">{rules.length} controls</span>
         </div>
         {metrics && (
@@ -697,7 +837,61 @@ function ResultPanel({ result, metrics, activeRule, onRuleClick }) {
             {metrics.maxFloorArea && <MetricPill label={`GFA (FSR ${metrics.fsr}:1)`} value={`${metrics.maxFloorArea.toLocaleString()} m²`} color="#6366f1" />}
           </div>
         )}
+        {result.data_currency && (
+          <div className="data-currency-note">
+            {result.data_currency.live_map_data_age_days != null && (
+              <span>Live map data: {result.data_currency.live_map_data_age_days}d old (refreshed every {result.data_currency.live_map_data_refreshed_every_days}d)</span>
+            )}
+            {Object.entries(result.data_currency.dcp_versions ?? {}).map(([doc, v]) => (
+              <span key={doc} title={doc}>{doc.replace(/^Canada Bay /, "")}: v{v.version ?? "?"} ({v.date})</span>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Made-up placeholder setback used instead of a real rule — this is
+          the single most important warning to surface: it means part of
+          the drawn shape is not backed by an actual council figure. */}
+      {result.envelope_fallback_warnings?.length > 0 && (
+        <CaveatBanner type="danger" title="Some of this shape uses placeholder numbers, not real council rules">
+          <ul className="caveat-list">
+            {result.envelope_fallback_warnings.map((w, i) => (
+              <li key={i}>{w.message}</li>
+            ))}
+          </ul>
+        </CaveatBanner>
+      )}
+
+      {/* Five Dock Town Centre and similar carve-outs where no shape can be
+          computed at all — the backend already explains why, this just
+          makes sure that explanation actually reaches the page. */}
+      {result.envelope_note && (
+        <CaveatBanner type="warn" title="No shape drawn for this address">
+          {result.envelope_note}
+        </CaveatBanner>
+      )}
+
+      {/* Council can still approve more than the height/FSR number shown
+          below, if justified — this was previously buried inside a long
+          "Applies when" list on the individual rule card. */}
+      {heightOrFsrRule && (
+        <CaveatBanner type="info" title="This is a standard, not an absolute ceiling">
+          Council can approve a building that exceeds the height or floor-space number shown below,
+          if the applicant provides good enough justification. The figures below are the normal
+          limit, not a hard cap that can never be crossed.
+        </CaveatBanner>
+      )}
+
+      <CaveatBanner type="muted" title="Corner lots are not automatically detected">
+        If this property has frontage to two streets, it may need an extra setback on the second
+        street that isn't reflected below — please confirm this with council directly.
+      </CaveatBanner>
+
+      <CdcEligibilitySection address={result.address} />
+
+      {result.alternate_development_scenario && (
+        <AlternateScenarioSection scenario={result.alternate_development_scenario} />
+      )}
 
       {GROUPS.map((group) => {
         const list = rules.filter((r) => group.match(r.parameter));
@@ -719,6 +913,125 @@ function ResultPanel({ result, metrics, activeRule, onRuleClick }) {
           />
         );
       })()}
+    </div>
+  );
+}
+
+function CaveatBanner({ type, title, children }) {
+  return (
+    <div className={`caveat-banner caveat-banner--${type}`}>
+      <span className="caveat-icon" aria-hidden="true">
+        {type === "danger" ? "⛔" : type === "warn" ? "⚠️" : type === "info" ? "ℹ️" : "📍"}
+      </span>
+      <span>
+        <span className="caveat-title">{title}</span>
+        {children}
+      </span>
+    </div>
+  );
+}
+
+function CdcEligibilitySection({ address }) {
+  const [open, setOpen]       = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [data, setData]       = useState(null);
+  const [error, setError]     = useState(null);
+
+  async function toggle() {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (data || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/cdc-eligibility`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `Server error (${res.status})`);
+      }
+      setData(await res.json());
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div>
+      <button className="cdc-toggle-btn" onClick={toggle}>
+        ⚡ {open ? "Hide" : "Check"} fast-track (Complying Development) eligibility
+      </button>
+      {open && (
+        <div className="cdc-panel">
+          {loading && "Checking…"}
+          {error && <span style={{ color: "var(--red-600)" }}>{error}</span>}
+          {data && (
+            <>
+              <div className="cdc-panel-row">
+                <span>Housing Code (dwelling houses)</span>
+                <strong>{data.eligibility.housing_code_zone_eligible ? "Zone eligible" : "Not eligible"}</strong>
+              </div>
+              <div className="cdc-panel-row">
+                <span>Low Rise Housing Diversity Code (dual occ/manor house/terraces)</span>
+                <strong>{data.eligibility.low_rise_housing_diversity_code_zone_eligible ? "Zone eligible" : "Not eligible"}</strong>
+              </div>
+              <div className="cdc-panel-row">
+                <span>Lot area</span>
+                <strong>{data.eligibility.lot_area_sqm} m²</strong>
+              </div>
+              <p style={{ marginTop: 8, fontSize: 11.5, color: "var(--gray-500)" }}>
+                {data.eligibility.overall_note} This is a separate, faster approval pathway to the
+                standard controls shown below — the two use different rules and are not interchangeable.
+              </p>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AlternateScenarioSection({ scenario }) {
+  const [open, setOpen] = useState(false);
+  const rules = scenario.rules_applied ?? [];
+  const preview = rules.slice(0, 6);
+
+  return (
+    <div>
+      <CaveatBanner type="info" title="This zone permits more than one building type">
+        {scenario.note}
+      </CaveatBanner>
+      <button className="cdc-toggle-btn" onClick={() => setOpen((o) => !o)}>
+        🏢 {open ? "Hide" : "Show"} the {scenario.label.toLowerCase()}
+      </button>
+      {open && (
+        <div className="cdc-panel">
+          {scenario.envelope_fallback_warnings?.length > 0 && (
+            <p style={{ color: "var(--red-600)", marginBottom: 6 }}>
+              {scenario.envelope_fallback_warnings.map((w) => w.message).join(" ")}
+            </p>
+          )}
+          {preview.map((r, i) => {
+            const opSym = r.operator === "min" ? "≥" : r.operator === "max" ? "≤" : "=";
+            return (
+              <div className="cdc-panel-row" key={i}>
+                <span>{PARAM_LABELS[r.parameter] || formatParamLabel(r.parameter)}</span>
+                <strong>{opSym}&thinsp;{r.value}{r.unit}</strong>
+              </div>
+            );
+          })}
+          {rules.length > preview.length && (
+            <p style={{ marginTop: 8, fontSize: 11.5, color: "var(--gray-500)" }}>
+              +{rules.length - preview.length} more controls under this scenario.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -752,7 +1065,7 @@ function RuleGroup({ group, rules, activeRule, onRuleClick }) {
 }
 
 function RuleCard({ rule, accent, active, onClick }) {
-  const label    = PARAM_LABELS[rule.parameter] || rule.parameter;
+  const label    = PARAM_LABELS[rule.parameter] || formatParamLabel(rule.parameter);
   const opSymbol = rule.operator === "min" ? "≥" : rule.operator === "max" ? "≤" : "=";
 
   return (
@@ -780,6 +1093,12 @@ function RuleCard({ rule, accent, active, onClick }) {
         )}
         {active && (
           <div className="rule-detail">
+            <span
+              className={`rule-source-badge rule-source-badge--${rule.verified ? "verified" : "unverified"}`}
+              title={rule.confidence != null ? `Extraction confidence: ${Math.round(rule.confidence * 100)}%` : undefined}
+            >
+              {rule.verified ? "✓ Human-checked" : "Auto-extracted, not checked"}
+            </span>
             {rule.text && (
               <blockquote className="rule-quote">"{rule.text}"</blockquote>
             )}
@@ -791,7 +1110,7 @@ function RuleCard({ rule, accent, active, onClick }) {
             )}
             {rule.pdf_link && (
               <a
-                href={rule.pdf_link}
+                href={`${API_BASE}${rule.pdf_link}`}
                 target="_blank"
                 rel="noreferrer"
                 className="pdf-btn"

@@ -1,0 +1,25 @@
+{
+  "clause_label_regex": "^(C\\d+[a-z]?)\\.?\\s+(.*)",
+  "clause_label_type": "control",
+  "objective_label_regex": "^(O\\d+)\\.?\\s+(.*)",
+  "section_heading_style": "numeric_inline",
+  "section_heading_regex": "^([A-Z]\\d+(?:\\.\\d+)*)\\s+(.+)",
+  "part_header_regex": "Part\\s+([A-Z])\\s+([A-Za-z\\s]+)",
+  "font_heading_min_size_offset": null,
+  "noise_line_patterns": [
+    "^Development Control Plan$",
+    "^Part B$",
+    "^General Controls$",
+    "^CITY OF CANADA BAY$",
+    "^Page B-\\d+$",
+    "^Version: \\d+, Version Date: \\d{2}/\\d{2}/\\d{4}$",
+    "^Document Set ID: \\d+$"
+  ],
+  "clause_label_examples": [
+    "C1",
+    "C2a",
+    "C10"
+  ],
+  "notes": "The document uses a hierarchical alphanumeric system where Part B is divided into sections (e.g., B1, B1.1). Controls are typically labelled with 'C' followed by a number (e.g., C1). Objectives are labelled with 'O' followed by a number.",
+  "source_document": "Canada Bay DCP Part B (General Controls)"
+}
