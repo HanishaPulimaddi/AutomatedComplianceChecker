@@ -820,13 +820,14 @@ def get_cdc_eligibility(req: EnvelopeRequest):
         }
 
         rules_source = RULES if zone in ("R1", "R2") else RULES_R3
+        cdc_zone_filter = "R2" if zone == "R1" else zone
         cdc_rules = [
             r for r in rules_source
             if (
                 r.get("parameter", "").startswith("cdc_")
                 or (r.get("parameter", "").startswith("cdc3b_") and eligibility["low_rise_housing_diversity_code_zone_eligible"])
             )
-            and r.get("zone") in (zone, "all")
+            and r.get("zone") in (cdc_zone_filter, "all")
             and not r.get("superseded_by")
         ]
 
