@@ -134,6 +134,26 @@ def _pdf_link_for(source_document: str, page: int) -> str:
     return f"/docs/{quote(filename)}.pdf#page={page or 1}"
 
 
+def _make_rule_entry(r: dict) -> dict:
+    source_doc = r.get("source_document", "")
+    return {
+        "value":           r["value"],
+        "unit":            r["unit"],
+        "operator":        r["operator"],
+        "clause":          r.get("source_clause", ""),
+        "page":            r.get("source_page", 0),
+        "text":            r.get("source_text", ""),
+        "conditions":      r.get("conditions", []),
+        "exceptions":      r.get("exceptions", []),
+        "dwelling_type":   r.get("dwelling_type", "all"),
+        "source_document": source_doc,
+        "source_type":     r.get("source_type", "unknown"),
+        "confidence":      r.get("confidence"),
+        "verified":        r.get("verified", False),
+        "pdf_link":        _pdf_link_for(source_doc, r.get("source_page", 1)),
+    }
+
+
 # How long a cached live-map lookup (FSR/height/lot size/heritage) is trusted
 # before being re-fetched. These reflect council LEP amendments, which happen
 # on the order of months, not days — 30 days balances staleness risk against
@@ -167,9 +187,9 @@ _FIVE_DOCK_TOWN_CENTRE_BOUNDARY_ROADS = {"Barnstaple Road", "Waterview Street", 
 
 
 def _in_five_dock_town_centre_carveout(address: str, lat: float, lon: float) -> bool:
-    if "FIVE DOCK" not in address.upper():
-        return False
     upper = address.upper()
+    if "FIVE DOCK" not in upper:
+        return False
     for road in _FIVE_DOCK_TOWN_CENTRE_BOUNDARY_ROADS:
         if road.upper() in upper:
             return True
@@ -592,25 +612,6 @@ def get_envelope(req: EnvelopeRequest):
 
         # Group by parameter: one entry per parameter with a primary value
         # (unconditional rule) and a variants list for conditional rules.
-        def _make_entry(r):
-            source_doc = r.get("source_document", "")
-            return {
-                "value":           r["value"],
-                "unit":            r["unit"],
-                "operator":        r["operator"],
-                "clause":          r.get("source_clause", ""),
-                "page":            r.get("source_page", 0),
-                "text":            r.get("source_text", ""),
-                "conditions":      r.get("conditions", []),
-                "exceptions":      r.get("exceptions", []),
-                "dwelling_type":   r.get("dwelling_type", "all"),
-                "source_document": source_doc,
-                "source_type":     r.get("source_type", "unknown"),
-                "confidence":      r.get("confidence"),
-                "verified":        r.get("verified", False),
-                "pdf_link":        _pdf_link_for(source_doc, r.get("source_page", 1)),
-            }
-
         def _is_conditional(entry: dict) -> bool:
             # A rule scoped to a specific dwelling type (not the general
             # dwelling_house/all case) is conditional even if conditions[]
@@ -649,7 +650,7 @@ def get_envelope(req: EnvelopeRequest):
             grouped_local: dict[str, dict] = {}
             for r in applied_rules_local:
                 param = r["parameter"]
-                entry = _make_entry(r)
+                entry = _make_rule_entry(r)
                 if param not in grouped_local:
                     grouped_local[param] = {**entry, "parameter": param, "variants": []}
                 else:
@@ -819,26 +820,16 @@ def get_cdc_eligibility(req: EnvelopeRequest):
         }
 
         rules_source = RULES if zone in ("R1", "R2") else RULES_R3
+        cdc_zone_filter = "R2" if zone == "R1" else zone
         cdc_rules = [
             r for r in rules_source
             if (
                 r.get("parameter", "").startswith("cdc_")
                 or (r.get("parameter", "").startswith("cdc3b_") and eligibility["low_rise_housing_diversity_code_zone_eligible"])
             )
-            and r.get("zone") in (zone, "all")
+            and r.get("zone") in (cdc_zone_filter, "all")
             and not r.get("superseded_by")
         ]
-
-        def _make_entry(r):
-            return {
-                "value": r["value"], "unit": r["unit"], "operator": r["operator"],
-                "clause": r.get("source_clause", ""), "page": r.get("source_page", 0),
-                "text": r.get("source_text", ""), "conditions": r.get("conditions", []),
-                "exceptions": r.get("exceptions", []), "dwelling_type": r.get("dwelling_type", "all"),
-                "source_document": r.get("source_document", ""), "source_type": r.get("source_type", "unknown"),
-                "confidence": r.get("confidence"), "verified": r.get("verified", False),
-                "pdf_link": _pdf_link_for(r.get("source_document", ""), r.get("source_page", 1)),
-            }
 
         # Group by (parameter, dwelling_type) rather than parameter alone —
         # Part 3B reuses parameter names (e.g. cdc3b_side_setback_min)
@@ -848,7 +839,7 @@ def get_cdc_eligibility(req: EnvelopeRequest):
         grouped: dict[tuple, dict] = {}
         for r in cdc_rules:
             key = (r["parameter"], r.get("dwelling_type", "all"))
-            entry = _make_entry(r)
+            entry = _make_rule_entry(r)
             if key not in grouped:
                 grouped[key] = {**entry, "parameter": r["parameter"], "variants": []}
             else:

@@ -396,7 +396,7 @@ def compute_envelope_result(
 
 
 def compute_envelope(lot_polygon: dict, rules: list,
-                     geocoded_lat: float, geocoded_lon: float) -> dict:
+                     geocoded_lat: float, geocoded_lon: float) -> tuple:
     """
     Given a lot polygon and a list of rules, compute the buildable envelope.
 
