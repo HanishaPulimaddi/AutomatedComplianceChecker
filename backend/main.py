@@ -6,6 +6,7 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 import json
+import math
 import sys
 import time
 from pathlib import Path
@@ -175,6 +176,22 @@ DCP_SOURCE_VERSIONS = {
     "Canada Bay DCP Part D (Boarding Houses)": {"version": 3, "date": "2025-06-26"},
     "Canada Bay DCP Part J (Child Care Centres)": {"version": 3, "date": "2025-06-26"},
 }
+
+# The envelope polygon is a single flat ground-floor footprint, clipped by
+# front/rear/side(ground)/secondary setbacks only. It does NOT model
+# side_setback_upper (the larger setback most DCPs require for upper
+# storeys) or height_plane — both are still extracted and returned as
+# citations in rules_applied, but are not applied to this shape. For any
+# dwelling with an upper floor, the real permitted massing is narrower
+# than this polygon shows above ground level.
+ENVELOPE_GEOMETRY_NOTE = (
+    "This shape is the ground-floor footprint only, clipped by the front, rear, side "
+    "(ground floor) and — for corner lots — secondary-frontage setbacks. It does not yet "
+    "model the upper-storey side setback or the DCP's height plane, both of which are "
+    "listed separately in rules_applied. For any dwelling with an upper floor, the actual "
+    "permitted massing steps in further than this shape shows once above ground-floor "
+    "wall height — check the side_setback_upper and height_plane citations directly."
+)
 
 # Part F (F1, "Land to which Part F applies") explicitly excludes R3 land in
 # the Five Dock Town Centre with a boundary to any of these three roads —
@@ -722,6 +739,7 @@ def get_envelope(req: EnvelopeRequest):
                 ),
                 "envelope": alt_envelope,
                 "envelope_fallback_warnings": alt_warnings,
+                "envelope_geometry_note": ENVELOPE_GEOMETRY_NOTE if alt_envelope is not None else None,
                 "rules_applied": _build_citations(alt_rules, alt_matching_zone, alt_excluded),
             }
 
@@ -742,6 +760,7 @@ def get_envelope(req: EnvelopeRequest):
             "lot_polygon":   polygon,
             "envelope":      envelope,
             "envelope_fallback_warnings": fallback_warnings,
+            "envelope_geometry_note": ENVELOPE_GEOMETRY_NOTE if envelope is not None else None,
             "rules_applied": citations,
             "alternate_development_scenario": alternate_scenario,
             "heritage":      heritage_info,
@@ -797,7 +816,15 @@ def get_cdc_eligibility(req: EnvelopeRequest):
             raise ValueError("CDC standards are currently only extracted for Canada Bay.")
 
         from shapely.geometry import Polygon as ShapelyPolygon
-        lot_area_sqm = round(ShapelyPolygon(polygon["coordinates"][0]).area * (111000 ** 2), 1)
+        # 1 degree of longitude is ~111,320m x cos(latitude), not 111,000m —
+        # treating both axes as equal overstates area by ~1/cos(lat) (~20%
+        # at this latitude). See compute_envelope._metric_scale for the
+        # same correction applied to /envelope's area figures.
+        lot_area_sqm = round(
+            ShapelyPolygon(polygon["coordinates"][0]).area
+            * 111320 * math.cos(math.radians(lat)) * 111000,
+            1,
+        )
 
         # Housing Code (Part 3: dwelling houses) applies to R1/R2/R3/R4/RU5.
         # Low Rise Housing Diversity Code (Part 3B: dual occ/manor

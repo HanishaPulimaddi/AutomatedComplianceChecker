@@ -255,7 +255,11 @@ def compute_lot_dimensions(
     geocoded_lat/lon: Nominatim road point — identifies the front edge.
     """
     lot = Polygon(polygon_coords)
-    lot_area_sqm = lot.area * (111_000 ** 2)
+    # 1 degree of longitude is ~111,320m x cos(latitude), not 111,000m —
+    # treating both axes as equal overstates area by ~1/cos(lat) (~20% at
+    # this latitude). Matches the correction in compute_envelope._metric_scale.
+    lat_rad_for_area = math.radians(geocoded_lat)
+    lot_area_sqm = lot.area * 111_320 * math.cos(lat_rad_for_area) * 111_000
 
     coords = polygon_coords[:-1]
     road_pt = Point(geocoded_lon, geocoded_lat)

@@ -7926,5 +7926,51 @@
     "min_lot_size": null,
     "heritage": null,
     "map_data_fetched_at": 1783169761.8610575
+  },
+  "8 Ramsay Street Haberfield 2045": {
+    "lat": -33.885614347591,
+    "lon": 151.142596831146,
+    "zone": "R2",
+    "polygon": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            151.1428464052196,
+            -33.8855545930931
+          ],
+          [
+            151.14243918093499,
+            -33.885787800280035
+          ],
+          [
+            151.14241008338,
+            -33.885751612453255
+          ],
+          [
+            151.14234619744283,
+            -33.885674845289294
+          ],
+          [
+            151.1427533588453,
+            -33.88544085849531
+          ],
+          [
+            151.1428464052196,
+            -33.8855545930931
+          ]
+        ]
+      ]
+    },
+    "lga_name": "INNER WEST",
+    "fsr": 0.5,
+    "hob": 7.0,
+    "min_lot_size": 500.0,
+    "heritage": {
+      "name": "Haberfield Heritage Conservation Area (nominated area of State significance)",
+      "significance": "Local",
+      "category": "Conservation Area - General"
+    },
+    "map_data_fetched_at": 1783317908.9237392
   }
 }

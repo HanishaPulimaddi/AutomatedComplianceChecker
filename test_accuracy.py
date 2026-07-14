@@ -6,10 +6,20 @@ rules file for that LGA and checks:
   - Recall: what fraction of GT parameters are covered by extracted rules
   - Precision: of parameters covered, how many values match
 
+It also runs a separate envelope-geometry check (see test_envelope_geometry
+below): the rule-accuracy check above only verifies that DCP text was
+parsed into the right VALUE (e.g. front_setback=4.5m) — it never builds a
+polygon, so it can't catch a bug in how that value gets applied to actual
+lot geometry (this project shipped exactly that kind of bug once: setbacks
+were silently under-applied by ~17% on east/west-facing lots because 1
+degree of longitude and 1 degree of latitude were treated as the same
+physical distance).
+
 Usage:
     python test_accuracy.py                          # test all LGAs
     python test_accuracy.py --lga "Canada Bay"       # one LGA
     python test_accuracy.py --verbose                # show per-param detail
+    python test_accuracy.py --skip-geometry          # skip the envelope check
 """
 
 import json
@@ -18,6 +28,14 @@ import sys
 import argparse
 from pathlib import Path
 from collections import defaultdict
+
+from shapely.geometry import shape, Point
+from shapely.ops import nearest_points
+
+BACKEND_DIR = Path(__file__).resolve().parent / "backend"
+sys.path.insert(0, str(BACKEND_DIR))
+from compute_envelope import compute_envelope, get_front_edge  # noqa: E402
+from check_lmr import haversine  # noqa: E402  (independent great-circle distance — not compute_envelope's own projection math)
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf-8-sig"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -245,6 +263,205 @@ def test_address(entry: dict, rules: list[dict], verbose: bool = False) -> dict:
     }
 
 
+# ── Envelope geometry test ──────────────────────────────────────────────────
+#
+# Builds a real envelope for every cached lot (data/cached_lots.json) and
+# checks three things the rule-accuracy test above never touches:
+#   1. compute_envelope() runs without raising, for every zone Canada Bay
+#      serves live (R1-R4).
+#   2. The resulting envelope is non-empty and strictly smaller than the lot
+#      — a basic sanity bound.
+#   3. The front and rear setback distances actually applied are within
+#      tolerance of the DCP-cited value, measured independently via the
+#      haversine great-circle formula rather than compute_envelope's own
+#      equirectangular projection — so a regression of the same
+#      longitude-compression bug (setbacks silently off by up to ~17% on
+#      east/west-facing lots) would show up here as a measured-vs-expected
+#      mismatch, not just a "didn't crash" false pass.
+
+CACHE_PATH = BASE_DIR / "data" / "cached_lots.json"
+
+ENVELOPE_RULES_FILES = {
+    "R2": BASE_DIR / "data" / "rules_r2_canada_bay.json",
+    "R3": BASE_DIR / "data" / "rules_r3_canada_bay_pipeline.json",
+    "R4": BASE_DIR / "data" / "rules_r3_canada_bay_pipeline.json",  # R4 shares R3's Part F ruleset, same as main.py
+}
+
+SETBACK_TOLERANCE_M   = 0.3   # absolute floor
+SETBACK_TOLERANCE_PCT = 0.10  # relative — whichever tolerance is larger wins
+
+
+def _rules_for_zone(zone: str) -> tuple[list[dict], str]:
+    # R1 permits a dwelling house under the same Part E rules R2 uses — same
+    # routing main.py applies before calling compute_envelope. Returns the
+    # zone string rules are actually tagged with (R1 -> "R2"), needed by
+    # _build_env_rules below.
+    lookup_zone = "R2" if zone == "R1" else zone
+    path = ENVELOPE_RULES_FILES.get(lookup_zone)
+    if not path or not path.exists():
+        return [], lookup_zone
+    all_rules = json.loads(path.read_text(encoding="utf-8"))
+    confident = [r for r in all_rules if r.get("confidence", 0) >= 0.8]  # matches main.py's live filter
+    return confident, lookup_zone
+
+
+def _build_env_rules(rules: list[dict], matching_zone: str) -> list[dict]:
+    """Reproduces main.py's _build_scenario rule-selection order (zone
+    match, then dwelling_house/all preferred over other dwelling types per
+    parameter). compute_envelope() does NO zone/dwelling-type filtering
+    internally — it trusts the caller to have already narrowed `rules` down
+    to the right rows first, exactly like this. Skipping this step (as an
+    earlier version of this test did) meant compute_envelope() was handed a
+    rule list mixing R3/R4/other-dwelling-type entries, so its "first
+    matching rule" pick could silently be for the wrong zone/dwelling type
+    — producing a false mismatch that had nothing to do with the geometry
+    being tested."""
+    zone_rules = [
+        r for r in rules
+        if r.get("zone") in (matching_zone, "all_residential", "all")
+        and not r.get("superseded_by")
+    ]
+    env_rules = [r for r in zone_rules if r.get("dwelling_type") in ("dwelling_house", "all")]
+    covered = {r["parameter"] for r in env_rules}
+    env_rules += [
+        r for r in zone_rules
+        if r.get("dwelling_type") not in ("dwelling_house", "all")
+        and r["parameter"] not in covered
+    ]
+    return env_rules
+
+
+def _first_setback(rules: list[dict], param: str):
+    """Mirrors compute_envelope's own first-match rule selection, so the
+    'expected' value here is whatever the DCP actually states today — not a
+    hardcoded number that would silently go stale if the rules change."""
+    for r in rules:
+        if r.get("parameter") == param and r.get("operator") == "min":
+            return r["value"]
+    return None
+
+
+def _measured_setback_m(envelope_geom, edge_p1, edge_p2) -> float:
+    mid = Point((edge_p1[0] + edge_p2[0]) / 2, (edge_p1[1] + edge_p2[1]) / 2)
+    nearest_on_env, _ = nearest_points(envelope_geom.boundary, mid)
+    return haversine(mid.y, mid.x, nearest_on_env.y, nearest_on_env.x)
+
+
+def test_envelope_geometry(verbose: bool = False) -> dict:
+    if not CACHE_PATH.exists():
+        print(c(RED, "\nNo cached_lots.json found — skipping envelope geometry test."))
+        return {}
+
+    cache = json.loads(CACHE_PATH.read_text(encoding="utf-8"))
+
+    total, crashed, bad_bounds = 0, 0, 0
+    setback_checked, setback_failed = 0, 0
+    crash_list, bad_bounds_list, setback_fail_list = [], [], []
+
+    for address, lot in cache.items():
+        zone, polygon = lot.get("zone"), lot.get("polygon")
+        if zone not in ("R1", "R2", "R3", "R4") or not polygon:
+            continue
+        # A handful of cached entries pre-date the Canada-Bay-only cleanup
+        # (Inner West addresses from when Marrickville/Ashfield were also
+        # supported). Their geometry is fine to clip, but comparing the
+        # result against CANADA BAY's setback values would be comparing two
+        # different councils' standards — skip them rather than report a
+        # false mismatch that has nothing to do with the geometry code.
+        if lot.get("lga_name") and lot["lga_name"].upper() != "CITY OF CANADA BAY" and lot["lga_name"].upper() != "CANADA BAY":
+            continue
+        total += 1
+
+        raw_rules, matching_zone = _rules_for_zone(zone)
+        rules = _build_env_rules(raw_rules, matching_zone)
+        try:
+            env_geojson, _warnings = compute_envelope(polygon, rules, lot["lat"], lot["lon"])
+        except Exception as e:
+            crashed += 1
+            crash_list.append((address, str(e)))
+            continue
+
+        lot_geom = shape(polygon)
+        env_geom = shape(env_geojson)
+
+        if env_geom.is_empty or env_geom.area <= 0 or env_geom.area >= lot_geom.area:
+            bad_bounds += 1
+            bad_bounds_list.append(address)
+            continue
+
+        coords = polygon["coordinates"][0]
+        ring = coords[:-1]
+        n = len(ring)
+        front_idx, _ = get_front_edge(coords, lot["lon"], lot["lat"])
+        fp1, fp2 = ring[front_idx], ring[(front_idx + 1) % n]
+        fmid = ((fp1[0] + fp2[0]) / 2, (fp1[1] + fp2[1]) / 2)
+
+        # Rear edge = midpoint furthest from the front edge midpoint — same
+        # heuristic compute_envelope uses internally, duplicated here since
+        # it's simple/stable and not part of the projection math being
+        # tested. Distance MUST be measured in real metres (haversine) here,
+        # not raw lon/lat degrees: degree-space distance is anisotropic
+        # (longitude is compressed relative to latitude), so on a narrow,
+        # deep lot a long SIDE edge's midpoint can appear farther from the
+        # front in raw degrees than the true rear edge is — silently
+        # comparing this test against the wrong edge and reporting a false
+        # setback mismatch.
+        rear_idx, rear_dist = front_idx, -1.0
+        for i in range(n):
+            if i == front_idx:
+                continue
+            p1, p2 = ring[i], ring[(i + 1) % n]
+            mx, my = (p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2
+            d = haversine(fmid[1], fmid[0], my, mx)
+            if d > rear_dist:
+                rear_dist, rear_idx = d, i
+        rp1, rp2 = ring[rear_idx], ring[(rear_idx + 1) % n]
+
+        for label, p1, p2, expected in (
+            ("front", fp1, fp2, _first_setback(rules, "front_setback")),
+            ("rear",  rp1, rp2, _first_setback(rules, "rear_setback")),
+        ):
+            if expected is None:
+                continue
+            setback_checked += 1
+            measured = _measured_setback_m(env_geom, p1, p2)
+            tol = max(SETBACK_TOLERANCE_M, expected * SETBACK_TOLERANCE_PCT)
+            ok = abs(measured - expected) <= tol
+            if not ok:
+                setback_failed += 1
+                setback_fail_list.append((address, label, expected, round(measured, 2)))
+            if verbose:
+                mark = c(GREEN, "✓") if ok else c(RED, "✗")
+                print(f"    {mark} {address[:40]:40} {label:5} "
+                      f"expected={expected}m measured={measured:.2f}m")
+
+    print(f"\n{c(BOLD, 'Envelope Geometry')}  ({total} cached lots checked)")
+    print("-" * 55)
+
+    ok_computed = total - crashed
+    crash_c = GREEN if crashed == 0 else RED
+    print(f"  Computed successfully:   {c(crash_c, f'{ok_computed}/{total}')}")
+    for addr, err in crash_list[:5]:
+        print(f"    {c(RED,'✗')} {addr}: {err}")
+
+    ok_bounds = ok_computed - bad_bounds
+    bounds_c = GREEN if bad_bounds == 0 else RED
+    print(f"  Within lot boundary:     {c(bounds_c, f'{ok_bounds}/{ok_computed}')}")
+    for addr in bad_bounds_list[:5]:
+        print(f"    {c(RED,'✗')} {addr}: envelope empty, or >= lot area")
+
+    sb_c = GREEN if setback_failed == 0 else RED
+    print(f"  Setback distance correct (±{SETBACK_TOLERANCE_M}m or {int(SETBACK_TOLERANCE_PCT*100)}%, "
+          f"front+rear): {c(sb_c, f'{setback_checked - setback_failed}/{setback_checked}')}")
+    for addr, label, exp, got in setback_fail_list[:8]:
+        print(f"    {c(RED,'✗')} {addr[:40]:40} {label:5} expected={exp}m got={got}m")
+
+    return {
+        "total": total, "crashed": crashed, "bad_bounds": bad_bounds,
+        "setback_checked": setback_checked, "setback_failed": setback_failed,
+    }
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -254,6 +471,8 @@ def main():
     parser.add_argument("--pipeline", action="store_true",
                         help="Use pipeline output files instead of hand-tuned files")
     parser.add_argument("--verbose",  action="store_true", help="Show per-param detail")
+    parser.add_argument("--skip-geometry", action="store_true",
+                        help="Skip the envelope-geometry check (rule accuracy only)")
     args = parser.parse_args()
 
     rules_map = PIPELINE_FILES if args.pipeline else RULES_FILES
@@ -361,6 +580,10 @@ def main():
         pc = GREEN if gp >= 0.9 else (YELLOW if gp >= 0.7 else RED)
         print(f"  Recall:    {c(rc, f'{gr*100:.0f}%')}")
         print(f"  Precision: {c(pc, f'{gp*100:.0f}%')}")
+
+    if not args.skip_geometry:
+        print(f"\n{'='*65}")
+        test_envelope_geometry(verbose=args.verbose)
 
 
 if __name__ == "__main__":

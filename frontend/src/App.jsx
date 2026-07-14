@@ -850,12 +850,30 @@ function ResultPanel({ result, metrics, activeRule, onRuleClick }) {
       </div>
 
       {/* Made-up placeholder setback used instead of a real rule — this is
-          the single most important warning to surface: it means part of
-          the drawn shape is not backed by an actual council figure. */}
-      {result.envelope_fallback_warnings?.length > 0 && (
+          an important warning to surface: it means part of the drawn
+          shape is not backed by an actual council figure. */}
+      {result.envelope_fallback_warnings?.some((w) => w.placeholder_value_m != null) && (
         <CaveatBanner type="danger" title="Some of this shape uses placeholder numbers, not real council rules">
           <ul className="caveat-list">
-            {result.envelope_fallback_warnings.map((w, i) => (
+            {result.envelope_fallback_warnings.filter((w) => w.placeholder_value_m != null).map((w, i) => (
+              <li key={i}>{w.message}</li>
+            ))}
+          </ul>
+        </CaveatBanner>
+      )}
+
+      {/* Real DCP values, but possibly applied to the wrong physical edge —
+          confirmed failure modes on lots wider than they are deep, and on
+          lots with complex/curved (>12-vertex) boundaries. Surfaced
+          separately from the placeholder-value warning above because the
+          underlying numbers here ARE real; it's the shape they were
+          applied to that's unverified. This is the single most important
+          warning to notice: it's the one case where the shape can look
+          completely normal while actually being wrong. */}
+      {result.envelope_fallback_warnings?.some((w) => w.placeholder_value_m == null) && (
+        <CaveatBanner type="danger" title="This lot's shape may have confused setback detection">
+          <ul className="caveat-list">
+            {result.envelope_fallback_warnings.filter((w) => w.placeholder_value_m == null).map((w, i) => (
               <li key={i}>{w.message}</li>
             ))}
           </ul>
@@ -886,6 +904,16 @@ function ResultPanel({ result, metrics, activeRule, onRuleClick }) {
         If this property has frontage to two streets, it may need an extra setback on the second
         street that isn't reflected below — please confirm this with council directly.
       </CaveatBanner>
+
+      {/* The drawn shape is a flat ground-floor footprint — it doesn't narrow
+          for the upper-storey setback or height plane, even though both are
+          listed as separate rules below. Without this, the shape reads as a
+          complete 3D massing guide when it isn't yet. */}
+      {result.envelope_geometry_note && (
+        <CaveatBanner type="muted" title="This shape is the ground-floor footprint only">
+          {result.envelope_geometry_note}
+        </CaveatBanner>
+      )}
 
       <CdcEligibilitySection address={result.address} />
 
@@ -1014,6 +1042,11 @@ function AlternateScenarioSection({ scenario }) {
           {scenario.envelope_fallback_warnings?.length > 0 && (
             <p style={{ color: "var(--red-600)", marginBottom: 6 }}>
               {scenario.envelope_fallback_warnings.map((w) => w.message).join(" ")}
+            </p>
+          )}
+          {scenario.envelope_geometry_note && (
+            <p style={{ color: "var(--gray-500, #6b7280)", marginBottom: 6, fontSize: "0.9em" }}>
+              {scenario.envelope_geometry_note}
             </p>
           )}
           {preview.map((r, i) => {

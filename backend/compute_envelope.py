@@ -1,9 +1,33 @@
 import json
 import math
 from shapely.geometry import Polygon, Point, LineString, mapping, shape
-from shapely.ops import nearest_points
+from shapely.ops import nearest_points, transform
 
 from nsw_apis import get_road_segments_near_point
+
+
+# Degrees of longitude and latitude are NOT the same physical distance except
+# at the equator: 1° latitude is ~111,000m everywhere, but 1° longitude is
+# ~111,320m × cos(latitude) — at Sydney's latitude (~-33.85°) that's ~92,400m,
+# about 17% less. Every distance/area calculation in this module used to
+# multiply raw lon/lat degrees by a flat 111,000 for both axes, which
+# systematically under-clipped east/west-facing setbacks and overstated every
+# area figure (lot area, envelope area, FSR-derived floor area) by the same
+# ~1/cos(lat) factor. These two helpers project to a local metric coordinate
+# system (isotropic, centred on the lot's own latitude) so all geometry ops —
+# distances, offsets, areas — are done in real metres, then project back.
+def _metric_scale(ref_lat: float) -> tuple[float, float]:
+    return 111320 * math.cos(math.radians(ref_lat)), 111000
+
+
+def _project_to_m(coords: list, ref_lat: float) -> list:
+    sx, sy = _metric_scale(ref_lat)
+    return [(lon * sx, lat * sy) for lon, lat in coords]
+
+
+def _unproject_geometry(geometry, ref_lat: float):
+    sx, sy = _metric_scale(ref_lat)
+    return transform(lambda x, y, z=None: (x / sx, y / sy), geometry)
 
 
 def get_front_edge(polygon_coords: list, geocoded_lon: float, geocoded_lat: float) -> tuple:
@@ -129,6 +153,7 @@ def _apply_directional_setbacks(
     rear_setback_deg: float,
     side_setback_deg: float,
     secondary_setback_deg: float | None = None,
+    lonlat_ring: list | None = None,
     # Default OFF: direct testing against a real, verified non-corner lot
     # (35 Connecticut Avenue, Five Dock — a 6-sided/irregular block) produced
     # a false positive at 9.9m distance and within the parallelism tolerance,
@@ -150,21 +175,58 @@ def _apply_directional_setbacks(
     This correctly separates front, rear, and side setbacks instead of averaging.
 
     Args:
-        lot:               Shapely Polygon of the lot.
-        coords:            List of [lon, lat] ring points (closing point included).
+        lot:               Shapely Polygon of the lot, in a local projected
+                           metric coordinate system (see _project_to_m) —
+                           all offsets below are applied as real metres.
+        coords:            Ring points in that same projected system
+                           (closing point included).
         front_edge_idx:    Index of the front edge start vertex (from get_front_edge).
-        *_setback_deg:     Setback distances already converted to decimal degrees.
+        *_setback_deg:     Setback distances in metres (name kept for
+                           backward compatibility with callers).
         secondary_setback_deg: Corner-lot secondary-frontage setback, if the
                            ruleset has one; falls back to side_setback_deg if
                            no corner lot is detected or this is None.
+        lonlat_ring:       The same ring in real lon/lat degrees (not the
+                           projected metric system `coords` is in) — needed
+                           only by the opt-in detect_corner_lots path, which
+                           calls the live NSW road-layer API and requires
+                           real coordinates. Defaults to `coords` for
+                           backward compatibility, which is only correct if
+                           `coords` itself happens to already be lon/lat.
 
     Returns:
-        Shapely Polygon of the buildable area (may be MultiPolygon for odd lots).
+        (Shapely Polygon of the buildable area — may be MultiPolygon for odd
+        lots — geometry_warnings): geometry_warnings flags cases where the
+        front/rear/side edge model below is known to misfire (see the
+        vertex-count check right after ring/n are computed) — the setback
+        VALUES are still real DCP figures, but they may have been applied
+        to the wrong physical edge, so the shape should be treated as
+        unverified rather than silently trusted.
     """
     ring = coords[:-1]  # drop closing duplicate
     n = len(ring)
+    geometry_warnings: list[dict] = []
     if n < 3:
-        return lot
+        return lot, geometry_warnings
+
+    # Confirmed failure mode: a 100-vertex lot (a curved/waterfront boundary
+    # approximated by dozens of ~1m segments) had get_front_edge() pick a
+    # 1.2m micro-segment as "the front edge" — meaningless for a setback,
+    # since it isn't an actual building frontage. This model assumes a
+    # simple ~4-8 sided lot; flag rather than silently apply setbacks to an
+    # edge that was never a real frontage/boundary line.
+    MAX_RELIABLE_VERTICES = 12
+    if n > MAX_RELIABLE_VERTICES:
+        geometry_warnings.append({
+            "parameter": "geometry",
+            "message": (
+                f"This lot boundary has {n} vertices — front/rear/side setback "
+                f"detection is designed for simple lots (~4-8 sides) and is "
+                f"confirmed unreliable on complex or curved boundaries like this "
+                f"one. Treat this envelope's shape as unverified; check the "
+                f"actual site plan before relying on it."
+            ),
+        })
 
     # ── Identify rear edge (midpoint furthest from front edge midpoint) ──────
     fp1 = ring[front_edge_idx]
@@ -186,10 +248,25 @@ def _apply_directional_setbacks(
             max_dist = d
             rear_edge_idx = i
 
+    # NOTE: an earlier version of this guard also flagged lots where the
+    # detected rear edge isn't roughly parallel to the front edge (the
+    # "furthest midpoint" heuristic can pick a side edge as rear on lots
+    # wider than they are deep — confirmed concretely on a 43.8m-wide,
+    # ~13m-deep lot). It was pulled back out: calibrating it against this
+    # project's actual cached lots showed the vast majority present as
+    # wide/shallow by this same measure — 53 of 59 simple (<=12-vertex)
+    # cached lots came back >45 degrees off parallel — which would make the
+    # warning fire on nearly every address rather than the rare case it was
+    # meant to catch. Whether that's because Canada Bay's lot stock (as
+    # resolved by get_lot_polygon) genuinely skews this way, or because
+    # front-edge/orientation detection itself is unreliable for a lot of
+    # real addresses, wasn't run down — that's a bigger investigation than
+    # this guard was scoped for. Re-add only after that's actually answered.
+
     secondary_frontage_edges: list[int] = []
     if detect_corner_lots and secondary_setback_deg is not None:
         secondary_frontage_edges = find_secondary_frontage_edges(
-            ring, front_edge_idx, rear_edge_idx, n
+            (lonlat_ring or coords)[:-1], front_edge_idx, rear_edge_idx, n
         )
 
     # ── Clip lot edge by edge ────────────────────────────────────────────────
@@ -232,8 +309,13 @@ def _apply_directional_setbacks(
         op2 = (p2[0] + nx * sb, p2[1] + ny * sb)
 
         # Build half-plane: big rectangle on the inward side of the offset edge.
-        # Extend 2° in every direction so it always covers the entire lot.
-        BIG = 2.0
+        # Extend 5km in every direction so it always covers the entire lot —
+        # this used to be "2.0" when coords were raw lon/lat degrees (where a
+        # lot spans ~0.0003°), which is a comically small 2 metres now that
+        # coords are in a projected metric system; any residential lot would
+        # exceed that, silently truncating the half-plane and corrupting the
+        # intersection.
+        BIG = 5000.0
         half_plane = Polygon([
             (op1[0] - ux * BIG,           op1[1] - uy * BIG),
             (op2[0] + ux * BIG,           op2[1] + uy * BIG),
@@ -245,7 +327,7 @@ def _apply_directional_setbacks(
         if result.is_empty:
             break
 
-    return result
+    return result, geometry_warnings
 
 
 CONTROL_PARAMETERS = {
@@ -270,7 +352,10 @@ CONTROL_PARAMETERS = {
 
 
 def _area_sqm(geometry) -> float:
-    return round(geometry.area * (111000 ** 2), 1)
+    """Area in m2, correcting for longitude compression at this geometry's
+    own latitude (see _metric_scale above)."""
+    sx, sy = _metric_scale(geometry.centroid.y)
+    return round(geometry.area * sx * sy, 1)
 
 
 def _control_summary(rule: dict | None) -> dict | None:
@@ -412,16 +497,23 @@ def compute_envelope(lot_polygon: dict, rules: list,
     coords = lot_polygon["coordinates"][0]
     lot = Polygon(coords)
 
-    lot_area_sqm = lot.area * (111000 ** 2)
-    print(f"  Lot area: {lot_area_sqm:.1f} sqm")
-
-    # Identify front edge using geocoded point
+    # Identify front edge using geocoded point (scale-invariant point-on-line
+    # test, so this is fine to do in raw lon/lat before projecting).
     front_edge_idx, _ = get_front_edge(
         coords, geocoded_lon, geocoded_lat
     )
 
-    # Convert metres to degrees (1 degree lat ≈ 111,000m at Sydney's latitude)
-    M_TO_DEG = 1 / 111000
+    # Project to a local metric coordinate system centred on this lot's own
+    # latitude before doing ANY setback offset or area math (see
+    # _metric_scale/_project_to_m above) — offsetting in raw lon/lat degrees
+    # under-clips east/west-facing edges by ~17% at this latitude, since a
+    # degree of longitude is a shorter physical distance than a degree of
+    # latitude. Setback values are real metres in this space, no unit
+    # conversion needed.
+    coords_m = _project_to_m(coords, geocoded_lat)
+    lot_m = Polygon(coords_m)
+    lot_area_sqm = lot_m.area
+    print(f"  Lot area: {lot_area_sqm:.1f} sqm")
 
     # Extract setback values from real rules
     front_setback      = None
@@ -440,30 +532,30 @@ def compute_envelope(lot_polygon: dict, rules: list,
 
         if param == "front_setback" and op == "min":
             if front_setback is None:
-                front_setback = rule["value"] * M_TO_DEG
+                front_setback = rule["value"]
                 print(f"  Front setback from rule: {rule['value']}m "
                       f"(clause {rule.get('source_clause', 'unknown')})")
 
         elif param == "rear_setback" and op == "min":
             if rear_setback is None:
-                rear_setback = rule["value"] * M_TO_DEG
+                rear_setback = rule["value"]
                 print(f"  Rear setback from rule: {rule['value']}m "
                       f"(clause {rule.get('source_clause', 'unknown')})")
 
         elif param == "side_setback_ground" and op == "min":
             if _is_corner_condition(rule):
                 if secondary_setback is None:
-                    secondary_setback = rule["value"] * M_TO_DEG
+                    secondary_setback = rule["value"]
                     print(f"  Secondary-frontage (corner lot) side setback from rule: "
                           f"{rule['value']}m (clause {rule.get('source_clause', 'unknown')})")
             elif side_setback is None:
-                side_setback = rule["value"] * M_TO_DEG
+                side_setback = rule["value"]
                 print(f"  Side setback (ground) from rule: {rule['value']}m "
                       f"(clause {rule.get('source_clause', 'unknown')})")
 
         elif param == "side_setback_upper" and op == "min":
             if side_setback_upper is None:
-                side_setback_upper = rule["value"] * M_TO_DEG
+                side_setback_upper = rule["value"]
                 print(f"  Side setback (upper) from rule: {rule['value']}m "
                       f"(clause {rule.get('source_clause', 'unknown')})")
 
@@ -477,27 +569,27 @@ def compute_envelope(lot_polygon: dict, rules: list,
         msg = "No front setback rule matched this lot/zone — used a generic placeholder of 4.5m instead of a real council figure."
         print(f"  WARNING: {msg}")
         fallback_warnings.append({"parameter": "front_setback", "placeholder_value_m": 4.5, "message": msg})
-        front_setback = 4.5 * M_TO_DEG
+        front_setback = 4.5
     if rear_setback is None:
         msg = "No rear setback rule matched this lot/zone — used a generic placeholder of 4.0m instead of a real council figure."
         print(f"  WARNING: {msg}")
         fallback_warnings.append({"parameter": "rear_setback", "placeholder_value_m": 4.0, "message": msg})
-        rear_setback = 4.0 * M_TO_DEG
+        rear_setback = 4.0
     if side_setback is None:
         msg = "No side setback (ground floor) rule matched this lot/zone — used a generic placeholder of 0.9m instead of a real council figure."
         print(f"  WARNING: {msg}")
         fallback_warnings.append({"parameter": "side_setback_ground", "placeholder_value_m": 0.9, "message": msg})
-        side_setback = 0.9 * M_TO_DEG
+        side_setback = 0.9
     if side_setback_upper is None:
         msg = "No side setback (upper floor) rule matched this lot/zone — used a generic placeholder of 1.5m instead of a real council figure."
         print(f"  WARNING: {msg}")
         fallback_warnings.append({"parameter": "side_setback_upper", "placeholder_value_m": 1.5, "message": msg})
-        side_setback_upper = 1.5 * M_TO_DEG
+        side_setback_upper = 1.5
 
-    print(f"  Setbacks — front: {front_setback*111000:.1f}m, "
-          f"rear: {rear_setback*111000:.1f}m, "
-          f"side (ground): {side_setback*111000:.1f}m, "
-          f"side (upper): {side_setback_upper*111000:.1f}m")
+    print(f"  Setbacks — front: {front_setback:.1f}m, "
+          f"rear: {rear_setback:.1f}m, "
+          f"side (ground): {side_setback:.1f}m, "
+          f"side (upper): {side_setback_upper:.1f}m")
 
     # Apply directional setbacks: clip the lot with a half-plane per edge.
     # Each edge is offset inward by its specific setback (front / rear / side).
@@ -506,19 +598,24 @@ def compute_envelope(lot_polygon: dict, rules: list,
     # front_edge_idx already computed above by get_front_edge. A corner lot's
     # secondary-street-facing side gets secondary_setback instead of the
     # plain side_setback, detected live against the NSW road layer.
-    envelope = _apply_directional_setbacks(
-        lot, coords, front_edge_idx,
+    # All of this happens in the projected metric polygon/coords, so `sb`
+    # values below are real metres, not degrees.
+    envelope_m, geometry_warnings = _apply_directional_setbacks(
+        lot_m, coords_m, front_edge_idx,
         front_setback, rear_setback, side_setback,
         secondary_setback_deg=secondary_setback,
+        lonlat_ring=coords,
     )
+    fallback_warnings.extend(geometry_warnings)
 
-    if envelope is None or envelope.is_empty:
+    if envelope_m is None or envelope_m.is_empty:
         raise ValueError("Lot is too small for the required setbacks!")
 
-    envelope_area_sqm = envelope.area * (111000 ** 2)
+    envelope_area_sqm = envelope_m.area
     print(f"  Buildable envelope area: {envelope_area_sqm:.1f} sqm")
     print(f"  Coverage: {(envelope_area_sqm/lot_area_sqm)*100:.1f}% of lot")
 
+    envelope = _unproject_geometry(envelope_m, geocoded_lat)
     return mapping(envelope), fallback_warnings
 
 

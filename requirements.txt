@@ -3,7 +3,6 @@ uvicorn
 pydantic
 requests
 pdf2image
-anthropic
 pandas
 python-dotenv
 shapely
