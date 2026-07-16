@@ -49,6 +49,13 @@ python test_accuracy.py          # rule-extraction accuracy against ground truth
 python test_accuracy.py --skip-geometry   # skip the envelope-geometry check
 ```
 
+**Ground truth verification** (interactive CLI for building/updating `data/ground_truth_addresses.json`)
+```bash
+python verify_ground_truth.py
+python verify_ground_truth.py --all        # include already-verified addresses
+python verify_ground_truth.py --lga "Canada Bay"
+```
+
 ## Known limitations
 
 - Only Canada Bay is live; other councils return a 404.
