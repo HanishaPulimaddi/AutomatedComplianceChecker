@@ -1,7 +1,7 @@
 # Extraction Accuracy Report
 
 Last updated: 2026-07-16
-Scope: City of Canada Bay Council only, R2/R3/R4 residential zones — Inner West (Marrickville/Ashfield) support was deliberately removed on 5 July 2026; see `PROJECT_REPORT.md` §5.
+Scope: City of Canada Bay Council only, R2/R3/R4 residential zones — Inner West (Marrickville/Ashfield) support was deliberately removed on 5 July 2026.
 Ground truth: 26 NSW Planning API–verified addresses, values cross-checked against source DCP/LEP PDFs (`data/ground_truth_addresses.json`)
 
 Figures below are reproducible with `python test_accuracy.py`.
@@ -33,13 +33,13 @@ Checked against 70 cached lots (`python test_accuracy.py`, without `--skip-geome
 
 ### 1. Envelope fails to compute on 4 small lots
 
-`10 Marquet Street Rhodes`, `5 Bayswater Street Drummoyne`, `30 Waterview Street Five Dock`, `5 Wentworth Drive Liberty Grove` — genuinely too small for the required setbacks to leave any buildable footprint. Currently surfaces as an uncaught exception (HTTP 500) rather than a clean "no buildable envelope" response. See `PROJECT_REPORT.md` §8.
+`10 Marquet Street Rhodes`, `5 Bayswater Street Drummoyne`, `30 Waterview Street Five Dock`, `5 Wentworth Drive Liberty Grove` — genuinely too small for the required setbacks to leave any buildable footprint. Currently surfaces as an uncaught exception (HTTP 500) rather than a clean "no buildable envelope" response.
 
 ### 2. Setback distance wrong on 16/132 checks — wide/shallow lot rear/side swap
 
 The front/rear/side edge-detection heuristic ("rear = the edge whose midpoint sits furthest from the front edge's midpoint") misidentifies rear vs. side setbacks on lots wider than roughly 1.73× their depth. Confirmed on real addresses, e.g. Rhodes and Concord West lots where a 0.9–1.5m side setback was applied where 6.0m rear was required, or vice versa.
 
-This is the single most important open accuracy issue — see `PROJECT_REPORT.md` §6.8 for the investigation, including why a parallelism-based guard was tried and rejected (it false-positived on 89% of simple lots).
+This is the single most important open accuracy issue. A parallelism-based guard was tried and rejected — it false-positived on 89% of simple lots — so the underlying question (dataset genuinely skewed wide/shallow, or front-edge detection itself unreliable) still needs real investigation rather than a recalibrated threshold.
 
 ### 3. Tiered rules returned without lot-area resolution
 
@@ -49,7 +49,7 @@ Rules like `site_coverage_pct` are returned as all tiers (e.g. 40%, 45%, 50%, 55
 
 ## Fixed since last report
 
-- **Longitude/latitude projection bug** — setbacks were silently under-applied by up to ~17% on east/west-facing edges because degree-space math didn't account for `cos(latitude)`. Fixed by projecting to a local metric coordinate system before any offset/area math. See `PROJECT_REPORT.md` §6.3.
+- **Longitude/latitude projection bug** — setbacks were silently under-applied by up to ~17% on east/west-facing edges because degree-space math didn't account for `cos(latitude)`. Fixed by projecting to a local metric coordinate system before any offset/area math.
 - **Complex/curved boundaries** — lots with 12+ boundary vertices (e.g. curved waterfront cadastral boundaries) previously had edge-detection pick an architecturally meaningless micro-segment as the "front edge." Any lot over 12 vertices now returns its envelope plus an explicit warning (`envelope_fallback_warnings`) instead of a silently wrong number.
 
 ---
