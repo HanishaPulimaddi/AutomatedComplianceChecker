@@ -630,6 +630,20 @@ def get_envelope(req: EnvelopeRequest):
                          "modelled as a rule, but it means this value is a standard, not an "
                          "absolute ceiling.")
 
+        def _envelope_missing_note(missing: list) -> str:
+            """
+            User-facing explanation for a `None` envelope caused by a genuinely
+            missing setback rule (compute_envelope's `missing` list) — same
+            "don't guess, explain the gap" treatment as the Five Dock Town
+            Centre carve-out's envelope_note, just for a different cause.
+            """
+            reasons = " ".join(m["message"] for m in missing)
+            return (
+                "No buildable envelope could be computed for this address. " + reasons + " "
+                "Rather than draw a shape using a guessed number, no envelope is shown — every "
+                "real DCP standard that WAS found for this site is still listed below."
+            )
+
         def _build_citations(rules_source: list, matching_zone: str, excluded: set) -> list:
             """
             Group `rules_source` into one citation per parameter, then inject
@@ -695,9 +709,41 @@ def get_envelope(req: EnvelopeRequest):
                              f"count is governed by the height limit above, not a fixed count."),
                     "conditions": [], "exceptions": [], "variants": [], "pdf_link": "",
                 })
+
+            # Part F (multi-dwelling housing/terraces/manor houses/RFBs)
+            # states one "all walls" side setback per building type that
+            # applies to every storey — unlike Part E, there is no separate,
+            # larger upper-floor figure to cite. Without this, the upper-
+            # floor card just silently disappears from the Setbacks group,
+            # which reads as a data gap rather than the DCP's actual intent.
+            # Mirror the ground-floor entry (same value/variants — see
+            # compute_envelope's matching side_setback_upper fallback) with
+            # an explanatory condition instead.
+            if "side_setback_upper" not in grouped_local and "side_setback_ground" in grouped_local:
+                ground_entry = grouped_local["side_setback_ground"]
+                citations_local.append({
+                    **{k: v for k, v in ground_entry.items() if k not in ("parameter", "conditions")},
+                    "parameter": "side_setback_upper",
+                    "conditions": [
+                        *(ground_entry.get("conditions") or []),
+                        "This DCP part states one minimum wall setback per building type that applies "
+                        "to every storey — there is no separate, larger figure for upper floors. The "
+                        "ground-floor value shown here (see Side Setback — Ground Floor) is the same "
+                        "figure that applies upstairs.",
+                    ],
+                })
             return citations_local
 
         citations = _build_citations(rules, zone_for_rule_matching, excluded_params)
+
+        # envelope is None only when compute_envelope hit a genuinely missing
+        # setback rule (not the Five Dock carve-out, which never calls
+        # compute_envelope at all — skip_envelope=True there, so this can't
+        # double up with envelope_note below).
+        missing_setback_note = None
+        if envelope is None and fallback_warnings:
+            missing_setback_note = _envelope_missing_note(fallback_warnings)
+            fallback_warnings = []
 
         # R1 alone permits both a dwelling house (Part E, computed above as
         # the primary/default answer) AND multi-dwelling housing/residential
@@ -712,6 +758,10 @@ def get_envelope(req: EnvelopeRequest):
             alt_rules, alt_matching_zone, alt_excluded, alt_envelope, alt_warnings = _build_scenario(
                 alt_rules, "R3", height_open_ended=True, skip_envelope=False,
             )
+            alt_envelope_note = None
+            if alt_envelope is None and alt_warnings:
+                alt_envelope_note = _envelope_missing_note(alt_warnings)
+                alt_warnings = []
             alternate_scenario = {
                 "label": "If building multi-dwelling housing / a residential flat building instead (Part F)",
                 "note": (
@@ -722,6 +772,7 @@ def get_envelope(req: EnvelopeRequest):
                 ),
                 "envelope": alt_envelope,
                 "envelope_fallback_warnings": alt_warnings,
+                "envelope_note": alt_envelope_note,
                 "rules_applied": _build_citations(alt_rules, alt_matching_zone, alt_excluded),
             }
 
@@ -763,6 +814,8 @@ def get_envelope(req: EnvelopeRequest):
                 "height/storey reference table). Setback and exact height for this specific lot "
                 "must be checked against Council's maps directly."
             )
+        elif missing_setback_note:
+            response["envelope_note"] = missing_setback_note
         return response
 
     except ValueError as e:

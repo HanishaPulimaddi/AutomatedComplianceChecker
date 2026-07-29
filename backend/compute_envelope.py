@@ -387,10 +387,9 @@ def compute_envelope_result(
     return {
         "envelope": envelope,
         "fallback_warnings": fallback_warnings,
-        "development_controls": compute_development_controls(
-            lot_polygon,
-            envelope,
-            rules,
+        "development_controls": (
+            compute_development_controls(lot_polygon, envelope, rules)
+            if envelope is not None else None
         ),
     }
 
@@ -405,9 +404,11 @@ def compute_envelope(lot_polygon: dict, rules: list,
     geocoded_lat:  raw geocoded latitude (lands on the road)
     geocoded_lon:  raw geocoded longitude (lands on the road)
 
-    Returns (geojson_polygon, fallback_warnings) — fallback_warnings is a list
-    of dicts, one per setback that had no matching rule and fell back to a
-    generic placeholder value; empty if every setback came from a real rule.
+    Returns (geojson_polygon, info). If front/rear/side-ground setbacks all
+    matched a real rule, geojson_polygon is the computed envelope and info is
+    always []. If any of them is missing, no envelope is computed at all —
+    geojson_polygon is None and info is a list of dicts explaining which
+    parameter(s) were missing, so the caller can show why instead of a shape.
     """
     coords = lot_polygon["coordinates"][0]
     lot = Polygon(coords)
@@ -467,32 +468,42 @@ def compute_envelope(lot_polygon: dict, rules: list,
                 print(f"  Side setback (upper) from rule: {rule['value']}m "
                       f"(clause {rule.get('source_clause', 'unknown')})")
 
-    # Fall back to Canada Bay DCP R2 defaults only if rule not found. Every
-    # fallback used is collected in `fallback_warnings` and returned to the
-    # caller — this shape is only as good as the setbacks that produced it,
-    # and a silent made-up number looks identical to a real one unless the
-    # caller (and ultimately the end user) is told which is which.
-    fallback_warnings = []
+    # A setback with no matching rule is never guessed. front/rear/ground-side
+    # setbacks define the entire shape of the envelope — substituting a
+    # generic placeholder here would produce a confidently wrong shape that
+    # looks identical to a real one at a glance. Consistent with how the rest
+    # of the app treats a genuine data gap (e.g. the Five Dock Town Centre
+    # carve-out draws no envelope at all rather than approximate one): if any
+    # of these three is missing, no envelope is computed — the caller gets
+    # `(None, missing)` and shows the reason instead of a shape.
+    missing = []
     if front_setback is None:
-        msg = "No front setback rule matched this lot/zone — used a generic placeholder of 4.5m instead of a real council figure."
-        print(f"  WARNING: {msg}")
-        fallback_warnings.append({"parameter": "front_setback", "placeholder_value_m": 4.5, "message": msg})
-        front_setback = 4.5 * M_TO_DEG
+        missing.append({"parameter": "front_setback",
+                         "message": "No front setback rule matched this lot/zone."})
     if rear_setback is None:
-        msg = "No rear setback rule matched this lot/zone — used a generic placeholder of 4.0m instead of a real council figure."
-        print(f"  WARNING: {msg}")
-        fallback_warnings.append({"parameter": "rear_setback", "placeholder_value_m": 4.0, "message": msg})
-        rear_setback = 4.0 * M_TO_DEG
+        missing.append({"parameter": "rear_setback",
+                         "message": "No rear setback rule matched this lot/zone."})
     if side_setback is None:
-        msg = "No side setback (ground floor) rule matched this lot/zone — used a generic placeholder of 0.9m instead of a real council figure."
-        print(f"  WARNING: {msg}")
-        fallback_warnings.append({"parameter": "side_setback_ground", "placeholder_value_m": 0.9, "message": msg})
-        side_setback = 0.9 * M_TO_DEG
+        missing.append({"parameter": "side_setback_ground",
+                         "message": "No side setback (ground floor) rule matched this lot/zone."})
+    if missing:
+        print(f"  Cannot compute envelope — missing required setback rule(s): "
+              f"{[m['parameter'] for m in missing]}")
+        return None, missing
+
+    # side_setback_upper is a special case, not a generic missing-rule gap:
+    # Canada Bay DCP Part F (multi-dwelling housing/terraces/manor
+    # houses/RFBs) states one "all walls" setback per building type that
+    # applies to every storey — there is no separate upper-floor figure to
+    # extract (unlike Part E, which genuinely states ground and upper
+    # separately). side_setback is guaranteed real at this point (the early
+    # return above already ruled out the alternative), so reuse its exact
+    # value for the upper floor rather than treating this as another gap.
     if side_setback_upper is None:
-        msg = "No side setback (upper floor) rule matched this lot/zone — used a generic placeholder of 1.5m instead of a real council figure."
-        print(f"  WARNING: {msg}")
-        fallback_warnings.append({"parameter": "side_setback_upper", "placeholder_value_m": 1.5, "message": msg})
-        side_setback_upper = 1.5 * M_TO_DEG
+        side_setback_upper = side_setback
+        print(f"  No separate upper-floor side setback rule — reusing the real ground-floor "
+              f"side setback ({side_setback*111000:.1f}m) for the upper floor too (this DCP "
+              f"part states one setback for all walls, regardless of storey).")
 
     print(f"  Setbacks — front: {front_setback*111000:.1f}m, "
           f"rear: {rear_setback*111000:.1f}m, "
@@ -519,7 +530,7 @@ def compute_envelope(lot_polygon: dict, rules: list,
     print(f"  Buildable envelope area: {envelope_area_sqm:.1f} sqm")
     print(f"  Coverage: {(envelope_area_sqm/lot_area_sqm)*100:.1f}% of lot")
 
-    return mapping(envelope), fallback_warnings
+    return mapping(envelope), []
 
 
 if __name__ == "__main__":
