@@ -74,7 +74,7 @@ const GROUPS = [
   {
     key: "setbacks",
     label: "Setbacks",
-    color: "#6366f1",
+    color: "#2f5578",
     icon: (
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
         <path d="M21 3H3v18h18V3z" /><path d="M9 3v18M3 9h6M3 15h6" />
@@ -410,9 +410,14 @@ export default function App() {
             </MapContainer>
           </div>
 
-          {/* Site plan diagram */}
+          {/* Site plan diagram — only when an envelope was actually computed;
+              a missing setback rule means result.envelope is null (see
+              envelope_note in the panel), and SitePlanDiagram assumes a real
+              envelope polygon to draw dimension arrows against. */}
           {mapMode === "plan" && result && (
-            <SitePlanDiagram result={result} metrics={metrics} />
+            envelopeCoords
+              ? <SitePlanDiagram result={result} metrics={metrics} />
+              : <NoEnvelopeState note={result.envelope_note} />
           )}
         </div>
 
@@ -475,6 +480,11 @@ export default function App() {
 
 function SitePlanDiagram({ result, metrics }) {
   const W = 640, H = 520, PAD = 72;
+  // Extra top clearance so a rear/front dimension label can never land under
+  // the Satellite/Site Plan toggle, which is absolutely positioned at the
+  // top of this same canvas regardless of the lot's orientation — narrow,
+  // elongated lots can otherwise place that label directly underneath it.
+  const PAD_TOP = 120;
 
   const lotRing = result.lot_polygon.coordinates[0];
   const envelopeGeom = Array.isArray(result.envelope) ? result.envelope[0] : result.envelope;
@@ -497,9 +507,9 @@ function SitePlanDiagram({ result, metrics }) {
   const minX = Math.min(...xs), maxX = Math.max(...xs);
   const minY = Math.min(...ys), maxY = Math.max(...ys);
   const wM = maxX - minX, hM = maxY - minY;
-  const scale = Math.min((W - 2 * PAD) / wM, (H - 2 * PAD) / hM);
+  const scale = Math.min((W - 2 * PAD) / wM, (H - PAD_TOP - PAD) / hM);
   const ox = (W - wM * scale) / 2 - minX * scale;
-  const oy = (H - hM * scale) / 2 - minY * scale;
+  const oy = PAD_TOP + (H - PAD_TOP - PAD - hM * scale) / 2 - minY * scale;
   const toSVG = ([mx, my]) => [+(mx * scale + ox).toFixed(1), +(my * scale + oy).toFixed(1)];
 
   const lotSVG = lotM.map(toSVG);
@@ -566,7 +576,7 @@ function SitePlanDiagram({ result, metrics }) {
             stroke={color} strokeWidth="1" strokeDasharray="3 2" />
           <rect x={mid[0]+ox-18} y={mid[1]+oy-9} width="36" height="18" rx="4"
             fill="white" stroke={color} strokeWidth="1.2" />
-          <text x={mid[0]+ox} y={mid[1]+oy+4.5} textAnchor="middle"
+          <text className="dim-value" x={mid[0]+ox} y={mid[1]+oy+4.5} textAnchor="middle"
             fontSize="11" fontWeight="700" fill={color}>{label}</text>
         </g>
       );
@@ -582,7 +592,7 @@ function SitePlanDiagram({ result, metrics }) {
           stroke={color} strokeWidth="1.5" markerEnd={`url(#a-${cid})`}/>
         <rect x={mid2[0]-18} y={mid2[1]-9} width="36" height="18" rx="4"
           fill="white" stroke={color} strokeWidth="1.2"/>
-        <text x={mid2[0]} y={mid2[1]+4.5} textAnchor="middle"
+        <text className="dim-value" x={mid2[0]} y={mid2[1]+4.5} textAnchor="middle"
           fontSize="11" fontWeight="700" fill={color}>{label}</text>
       </g>
     );
@@ -610,7 +620,7 @@ function SitePlanDiagram({ result, metrics }) {
     const rot = (angleDeg > 90 || angleDeg < -90) ? angleDeg + 180 : angleDeg;
     return (
       <g key={"dl"+edgeIdx} transform={`rotate(${rot},${lx},${ly})`}>
-        <text x={lx} y={ly - 3} textAnchor="middle" fontSize="11" fontWeight="700" fill="#475569">
+        <text className="dim-value" x={lx} y={ly - 3} textAnchor="middle" fontSize="11" fontWeight="700" fill="#475569">
           {edgeLenM(edgeIdx)}m
         </text>
         <text x={lx} y={ly + 9} textAnchor="middle" fontSize="8" fill="#94a3b8" letterSpacing="0.8">
@@ -627,7 +637,7 @@ function SitePlanDiagram({ result, metrics }) {
     <div className="site-plan-wrap">
       <svg viewBox={`0 0 ${W} ${H}`} className="site-plan-svg" aria-label="Site plan diagram">
         <defs>
-          {[["#6366f1","arr-6366f1"],["#f97316","arr-f97316"],["#16a34a","arr-16a34a"]].map(([col, id]) => (
+          {[["#2f5578","arr-6366f1"],["#f97316","arr-f97316"],["#16a34a","arr-16a34a"]].map(([col, id]) => (
             <marker key={id} id={id} markerWidth="6" markerHeight="6" refX="3" refY="3" orient="auto">
               <path d="M0,0 L6,3 L0,6 Z" fill={col} />
             </marker>
@@ -670,8 +680,8 @@ function SitePlanDiagram({ result, metrics }) {
         })()}
 
         {/* Setback arrows — front and rear inside lot; skip side pill (too small, hatch shows zone) */}
-        {setbackArrow(frontIdx, fsb, "#6366f1")}
-        {setbackArrow(rearIdx,  rsb, "#6366f1")}
+        {setbackArrow(frontIdx, fsb, "#2f5578")}
+        {setbackArrow(rearIdx,  rsb, "#2f5578")}
 
         {/* Dimension labels — parallel to each edge, outward offset so they never overlap pills */}
         {dimLabel(frontIdx, "FRONT", 52)}
@@ -703,9 +713,9 @@ function SitePlanDiagram({ result, metrics }) {
           <rect x="0" y="0" width={scalePx10/2} height="6" fill="#334155"/>
           <rect x={scalePx10/2} y="0" width={scalePx10/2} height="6" fill="white" stroke="#334155" strokeWidth="1"/>
           <rect x="0" y="0" width={scalePx10} height="6" fill="none" stroke="#334155" strokeWidth="1"/>
-          <text x="0" y="18" fontSize="9" fill="#64748b" textAnchor="middle">0</text>
-          <text x={scalePx10/2} y="18" fontSize="9" fill="#64748b" textAnchor="middle">5m</text>
-          <text x={scalePx10} y="18" fontSize="9" fill="#64748b" textAnchor="middle">10m</text>
+          <text className="dim-value" x="0" y="18" fontSize="9" fill="#64748b" textAnchor="middle">0</text>
+          <text className="dim-value" x={scalePx10/2} y="18" fontSize="9" fill="#64748b" textAnchor="middle">5m</text>
+          <text className="dim-value" x={scalePx10} y="18" fontSize="9" fill="#64748b" textAnchor="middle">10m</text>
         </g>
 
         {/* Legend — bottom left */}
@@ -724,9 +734,9 @@ function SitePlanDiagram({ result, metrics }) {
           <g transform="translate(16, 16)">
             <rect x="0" y="0" width="155" height={metrics.maxFloorArea ? 74 : 58} rx="6" fill="white" stroke="#e2e8f0" strokeWidth="1" />
             <text x="10" y="16" fontSize="9" fontWeight="700" fill="#94a3b8" letterSpacing="0.5">SITE METRICS</text>
-            {metrics.lotArea  && <><text x="10" y="31" fontSize="10" fill="#64748b">Lot area</text><text x="145" y="31" textAnchor="end" fontSize="10" fontWeight="700" fill="#334155">{metrics.lotArea.toLocaleString()} m²</text></>}
-            {metrics.envArea  && <><text x="10" y="46" fontSize="10" fill="#64748b">Buildable footprint</text><text x="145" y="46" textAnchor="end" fontSize="10" fontWeight="700" fill="#3b82f6">{metrics.envArea.toLocaleString()} m²</text></>}
-            {metrics.maxFloorArea && <><text x="10" y="61" fontSize="10" fill="#64748b">Max GFA (FSR {metrics.fsr}:1)</text><text x="145" y="61" textAnchor="end" fontSize="10" fontWeight="700" fill="#6366f1">{metrics.maxFloorArea.toLocaleString()} m²</text></>}
+            {metrics.lotArea  && <><text x="10" y="31" fontSize="10" fill="#64748b">Lot area</text><text className="metric-value-text" x="145" y="31" textAnchor="end" fontSize="10" fontWeight="700" fill="#334155">{metrics.lotArea.toLocaleString()} m²</text></>}
+            {metrics.envArea  && <><text x="10" y="46" fontSize="10" fill="#64748b">Buildable footprint</text><text className="metric-value-text" x="145" y="46" textAnchor="end" fontSize="10" fontWeight="700" fill="#3b82f6">{metrics.envArea.toLocaleString()} m²</text></>}
+            {metrics.maxFloorArea && <><text x="10" y="61" fontSize="10" fill="#64748b">Max GFA (FSR {metrics.fsr}:1)</text><text className="metric-value-text" x="145" y="61" textAnchor="end" fontSize="10" fontWeight="700" fill="#2f5578">{metrics.maxFloorArea.toLocaleString()} m²</text></>}
           </g>
         )}
       </svg>
@@ -740,7 +750,7 @@ function EmptyState({ onExample }) {
   return (
     <div className="empty-state">
       <div className="empty-icon" aria-hidden="true">
-        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="1.4">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#2f5578" strokeWidth="1.4">
           <rect x="2" y="3" width="20" height="14" rx="2"/>
           <path d="M8 21h8M12 17v4"/>
           <path d="M7 8h2v6H7zM11 10h2v4h-2zM15 6h2v8h-2z"/>
@@ -781,6 +791,24 @@ function LoadingState() {
   );
 }
 
+function NoEnvelopeState({ note }) {
+  return (
+    <div className="empty-state" role="status">
+      <div className="empty-icon" aria-hidden="true">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.4">
+          <rect x="2" y="3" width="20" height="14" rx="2" />
+          <path d="M8 21h8M12 17v4" />
+          <line x1="6" y1="7" x2="18" y2="13" />
+        </svg>
+      </div>
+      <h2 className="empty-title">No buildable envelope to show</h2>
+      <p className="empty-body">
+        {note || "A required setback rule wasn't found for this site, so no shape was drawn — see the note in the panel."}
+      </p>
+    </div>
+  );
+}
+
 function ErrorState({ message, onDismiss }) {
   return (
     <div className="error-state" role="alert">
@@ -813,7 +841,7 @@ function ResultPanel({ result, metrics, activeRule, onRuleClick }) {
     <div className="result-panel">
       <div className="address-card">
         <div className="address-line">
-          <svg className="address-pin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" aria-hidden="true">
+          <svg className="address-pin" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#2f5578" strokeWidth="2" aria-hidden="true">
             <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
             <circle cx="12" cy="10" r="3" />
           </svg>
@@ -824,7 +852,7 @@ function ResultPanel({ result, metrics, activeRule, onRuleClick }) {
           {lga && <span className="lga-badge">{lga}</span>}
           {result.heritage && (
             <span className="heritage-badge" title={result.heritage.name || "Heritage listed"}>
-              🏛 Heritage{result.heritage.category ? ` — ${result.heritage.category}` : ""}
+              Heritage{result.heritage.category ? ` — ${result.heritage.category}` : ""}
             </span>
           )}
           <span className="rule-count">{rules.length} controls</span>
@@ -834,7 +862,7 @@ function ResultPanel({ result, metrics, activeRule, onRuleClick }) {
             {metrics.lotArea    && <MetricPill label="Lot" value={`${metrics.lotArea.toLocaleString()} m²`} />}
             {metrics.envArea    && <MetricPill label="Footprint" value={`${metrics.envArea.toLocaleString()} m²`} color="#f97316" />}
             {metrics.coverage   && <MetricPill label="Coverage" value={`${metrics.coverage}%`} />}
-            {metrics.maxFloorArea && <MetricPill label={`GFA (FSR ${metrics.fsr}:1)`} value={`${metrics.maxFloorArea.toLocaleString()} m²`} color="#6366f1" />}
+            {metrics.maxFloorArea && <MetricPill label={`GFA (FSR ${metrics.fsr}:1)`} value={`${metrics.maxFloorArea.toLocaleString()} m²`} color="#2f5578" />}
           </div>
         )}
         {result.data_currency && (
@@ -921,7 +949,7 @@ function CaveatBanner({ type, title, children }) {
   return (
     <div className={`caveat-banner caveat-banner--${type}`}>
       <span className="caveat-icon" aria-hidden="true">
-        {type === "danger" ? "⛔" : type === "warn" ? "⚠️" : type === "info" ? "ℹ️" : "📍"}
+        {type === "danger" ? "!" : type === "warn" ? "!" : type === "info" ? "i" : "·"}
       </span>
       <span>
         <span className="caveat-title">{title}</span>
@@ -964,7 +992,7 @@ function CdcEligibilitySection({ address }) {
   return (
     <div>
       <button className="cdc-toggle-btn" onClick={toggle}>
-        ⚡ {open ? "Hide" : "Check"} fast-track (Complying Development) eligibility
+        {open ? "Hide" : "Check"} fast-track (Complying Development) eligibility
       </button>
       {open && (
         <div className="cdc-panel">
@@ -1007,13 +1035,18 @@ function AlternateScenarioSection({ scenario }) {
         {scenario.note}
       </CaveatBanner>
       <button className="cdc-toggle-btn" onClick={() => setOpen((o) => !o)}>
-        🏢 {open ? "Hide" : "Show"} the {scenario.label.toLowerCase()}
+        {open ? "Hide" : "Show"} the {scenario.label.toLowerCase()}
       </button>
       {open && (
         <div className="cdc-panel">
           {scenario.envelope_fallback_warnings?.length > 0 && (
             <p style={{ color: "var(--red-600)", marginBottom: 6 }}>
               {scenario.envelope_fallback_warnings.map((w) => w.message).join(" ")}
+            </p>
+          )}
+          {scenario.envelope_note && (
+            <p style={{ color: "var(--gray-500)", marginBottom: 6, fontSize: 11.5 }}>
+              {scenario.envelope_note}
             </p>
           )}
           {preview.map((r, i) => {
